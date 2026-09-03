@@ -1,4 +1,16 @@
-# The Blogsterizer v0.5.0 audit
+# The Blogsterizer v0.5.0 audit — historical
+
+> **This document describes v0.5.0 and is kept for reference only.**
+>
+> Handoff §28 warns against treating a passing checklist as proof of
+> correctness: this one was fully ticked while `code-line` survived, `dir="auto"`
+> survived, `ex-link` was missing, bare `<code>` never received `language-apl`,
+> and normal images were being destroyed. Auditing v0.5.0 against the handoff
+> rather than against this list found five violations on the first pass.
+>
+> For current behaviour see `README.md`; for what changed and why, `CHANGELOG.md`;
+> for the authoritative rules, the handoff document itself.
+
 
 This checklist records the concrete behaviour the app is expected to have after reviewing the editing work that led to the Blogsterizer.
 

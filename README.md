@@ -21,7 +21,7 @@ Key corrections in v0.5.0 include:
 - application/package versioning and the launch scripts have been tidied up;
 - a final read-only validation pass now re-checks the APL, legacy-class, URL and external-link invariants, so a future regression appears as an Error instead of silently reaching the output.
 
-See `AUDIT.md` for the rule-by-rule checklist.
+`AUDIT-v0.5.0-historical.md` is the original v0.5.0 checklist, kept for reference only; see `CHANGELOG.md` for current state.
 
 ## What it does
 
