@@ -1,0 +1,934 @@
+:root {
+    --bg: #ffffff;
+    --surface: #f8f9fb;
+    --surface-alt: #f1f3f6;
+    --border: #e4e7eb;
+    --border-soft: #eef0f3;
+    --text: #1f2328;
+    --muted: #57606a;
+    --heading: #2a3244;
+    --accent: #ff6a13;
+    --accent-soft: #fff1e8;
+    --link: #ca4e00;
+    --link-hover: #526cfe;
+    /* Status palette. Each status is one solid colour, used as a fill. The text
+       on it is inverted to whichever of raisin/white gives more contrast:
+       raisin on green 7.45:1, on yellow 11.37:1; white on red 5.22:1. Base
+       colours are never used as text on the page background, where #F3DB4C
+       would be 1.4:1. */
+    --raisin: #232222;
+    --success: #2eca7c;
+    --on-success: var(--raisin);
+    --warning: #f3db4c;
+    --on-warning: var(--raisin);
+    --danger: #ca2e51;
+    --on-danger: #ffffff;
+    --suggested: #315f9e;
+    --on-suggested: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surface-alt: #21262d;
+        --border: #30363d;
+        --border-soft: #21262d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --heading: #f0f6fc;
+        --accent-soft: #2a1a0e;
+        --link: #ff8a4c;
+        --link-hover: #7c9bff;
+        --success: #2eca7c;
+        --warning: #f3db4c;
+        --danger: #ca2e51;
+        --suggested: #79a7e8;
+        --on-suggested: var(--raisin);
+    }
+}
+
+* { box-sizing: border-box; }
+
+html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light dark;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select { font: inherit; }
+
+button { color: inherit; }
+
+code,
+pre {
+    font-family: "APL385 Unicode", "Cascadia Mono", Consolas, monospace;
+}
+
+a {
+    color: var(--link);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+a:hover {
+    color: var(--link-hover);
+    border-bottom-color: var(--link-hover);
+}
+
+.site-header {
+    border-bottom: 1px solid var(--border);
+}
+
+.site-header-inner,
+main {
+    width: min(960px, calc(100% - 3rem));
+    margin: 0 auto;
+}
+
+.site-header-inner {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.brand {
+    color: var(--heading);
+    border-bottom: 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.brand:hover {
+    color: var(--heading);
+    border-bottom: 0;
+}
+
+.header-actions {
+    font-size: 0.9rem;
+}
+
+main {
+    padding: 2.25rem 0 4rem;
+}
+
+h1,
+h2,
+h3,
+p { margin-top: 0; }
+
+h1 {
+    margin-bottom: 0.4rem;
+    color: var(--heading);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+
+h2 {
+    color: var(--heading);
+    font-size: 1.35rem;
+}
+
+h3 {
+    color: var(--heading);
+    font-size: 1rem;
+}
+
+.page-heading {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.page-heading p {
+    max-width: 720px;
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.results-heading {
+    margin-bottom: 1rem;
+}
+
+.notice,
+.copy-status {
+    margin-bottom: 1rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+}
+
+.notice.error,
+.copy-status.failed {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--on-danger);
+}
+
+.copy-status.passed {
+    border-color: var(--success);
+    background: var(--success);
+    color: var(--on-success);
+}
+
+.copy-status {
+    display: flex;
+    gap: 0.65rem;
+    align-items: baseline;
+    font-size: 0.92rem;
+}
+
+.analysis-form {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem;
+}
+
+.form-row-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 1.25rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.source-switch {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.source-switch legend,
+.field > span {
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--heading);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.source-switch label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-right: 1rem;
+    cursor: pointer;
+}
+
+.source-switch input {
+    accent-color: var(--accent);
+}
+
+.field {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.field small {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+textarea,
+input[type="text"],
+select {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.65rem 0.7rem;
+    color: var(--text);
+    background: var(--bg);
+}
+
+textarea {
+    min-height: 410px;
+    resize: vertical;
+    line-height: 1.45;
+}
+
+textarea:focus,
+input:focus,
+select:focus,
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.profile-details {
+    margin: 0.25rem 0 1rem;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.profile-details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.profile-details ul {
+    margin: 0.75rem 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.9rem;
+}
+
+.profile-details li + li {
+    margin-top: 0.35rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.primary-button,
+.toolbar button,
+.finding-filter {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    cursor: pointer;
+}
+
+.primary-button {
+    border-color: var(--accent);
+    padding: 0.62rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 650;
+}
+
+.primary-button:hover {
+    filter: brightness(0.95);
+}
+
+.finding-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 1rem 0;
+}
+
+.finding-summary-label {
+    margin-right: 0.25rem;
+    color: var(--muted);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.finding-filter {
+    padding: 0.35rem 0.6rem;
+    color: var(--text);
+    font-size: 0.86rem;
+}
+
+.finding-filter strong {
+    margin-left: 0.22rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.finding-filter:hover {
+    border-color: var(--muted);
+    background: var(--surface);
+}
+
+.finding-filter.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.finding-filter.safe.active {
+    border-color: var(--success);
+    background: var(--success);
+    color: var(--on-success);
+}
+
+.finding-filter.suggested.active {
+    border-color: var(--suggested);
+    background: var(--suggested);
+    color: var(--on-suggested);
+}
+
+.finding-filter.warning.active {
+    border-color: var(--warning);
+    background: var(--warning);
+    color: var(--on-warning);
+}
+
+.finding-filter.error.active {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--on-danger);
+}
+
+.results-panel {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tabs {
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.tab {
+    padding: 0.72rem 0.9rem;
+    border: 0;
+    border-right: 1px solid var(--border-soft);
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab:hover {
+    background: var(--surface-alt);
+}
+
+.tab.active {
+    border-bottom-color: var(--accent);
+    color: var(--link);
+    background: var(--bg);
+}
+
+.tab-panel {
+    padding: 1rem;
+}
+
+.toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.45rem;
+    margin-bottom: 0.7rem;
+}
+
+.toolbar button {
+    padding: 0.38rem 0.6rem;
+    font-size: 0.84rem;
+}
+
+.toolbar button:hover {
+    background: var(--surface);
+}
+
+pre {
+    margin: 0;
+    padding: 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow: auto;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.preview-frame {
+    width: 100%;
+    min-height: 640px;
+    border: 1px solid var(--border);
+    background: #fff;
+}
+
+.changes-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: baseline;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.changes-heading span {
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.findings {
+    display: grid;
+    gap: 0;
+}
+
+.finding {
+    padding: 0.9rem 0;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.finding:last-child {
+    border-bottom: 0;
+}
+
+.finding-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+}
+
+.finding-heading code {
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+.finding-heading h3 {
+    margin: 0.12rem 0 0;
+}
+
+.finding-heading > span {
+    padding: 0.12rem 0.38rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.finding.safe .finding-heading > span {
+    border-color: var(--success);
+    background: var(--success);
+    color: var(--on-success);
+}
+
+.finding.suggested .finding-heading > span {
+    border-color: var(--suggested);
+    background: var(--suggested);
+    color: var(--on-suggested);
+}
+
+.finding.warning .finding-heading > span {
+    border-color: var(--warning);
+    background: var(--warning);
+    color: var(--on-warning);
+}
+
+.finding.error .finding-heading > span {
+    border-color: var(--danger);
+    background: var(--danger);
+    color: var(--on-danger);
+}
+
+.finding > p {
+    margin: 0.45rem 0 0;
+}
+
+.finding details {
+    margin-top: 0.6rem;
+}
+
+.finding summary {
+    cursor: pointer;
+    color: var(--link);
+    font-size: 0.85rem;
+}
+
+.finding h4 {
+    margin: 0.7rem 0 0.3rem;
+    font-size: 0.85rem;
+}
+
+.finding pre {
+    font-size: 0.82rem;
+}
+
+.empty-filter-message {
+    margin: 0;
+    color: var(--muted);
+}
+
+[hidden] { display: none !important; }
+
+@media (max-width: 680px) {
+    .site-header-inner,
+    main {
+        width: min(100% - 2rem, 960px);
+    }
+
+    main {
+        padding-top: 1.5rem;
+    }
+
+    h1 {
+        font-size: 1.65rem;
+    }
+
+    .form-row-top {
+        grid-template-columns: 1fr;
+        gap: 0.8rem;
+    }
+
+    .copy-status,
+    .changes-heading {
+        display: block;
+    }
+
+    .copy-status strong,
+    .changes-heading strong {
+        display: block;
+    }
+
+    .changes-heading span {
+        display: block;
+        margin-top: 0.2rem;
+    }
+
+    .finding-heading {
+        display: block;
+    }
+
+    .finding-heading > span {
+        display: inline-block;
+        margin-top: 0.4rem;
+    }
+}
+
+.toolbar-warning {
+    color: var(--danger, #a40e26);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.field-help {
+    display: block;
+    margin-top: 0.4rem;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+}
+
+
+/* Actions offered on individual findings. */
+.finding-action {
+    margin: 0.6rem 0 0;
+}
+
+.finding-action button {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--border, #ccc);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.finding-action button:hover {
+    border-color: var(--accent, #e8730a);
+    color: var(--accent, #e8730a);
+}
+
+.notice.applied {
+    border-color: var(--success);
+    background: var(--success);
+    color: var(--on-success);
+}
+
+
+/* Fixed counter and its undo control. */
+.fixed-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--success);
+    border-radius: 5px;
+    background: var(--success);
+    color: var(--on-success);
+    font-size: 0.85rem;
+}
+
+.fixed-count form {
+    display: inline;
+    margin: 0;
+}
+
+.fixed-count button {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--raisin);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--on-success);
+    cursor: pointer;
+}
+
+/* Key to the severities. */
+.severity-key {
+    margin: -0.5rem 0 1rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.severity-key summary {
+    cursor: pointer;
+    color: var(--link);
+}
+
+.severity-key dl {
+    margin: 0.6rem 0 0;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+}
+
+.severity-key dt {
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 0.6rem;
+}
+
+.severity-key dt:first-child { margin-top: 0; }
+
+.severity-key dd { margin: 0.15rem 0 0; }
+
+/* The result of applying a suggestion. */
+.finding details h4 + pre code.preview {
+    border-left: 3px solid var(--success);
+}
+
+.action-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-right: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.action-input input {
+    font: inherit;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+
+/* Preview of an action: the resulting blocks, then the marked-up source. */
+.preview-blocks {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0.4rem 0 0.7rem;
+}
+
+.preview-block {
+    position: relative;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--success);
+    border-radius: 5px;
+    background: var(--surface);
+}
+
+.preview-block p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.preview-block-tag {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+/* Markup inserted by the action. */
+mark.added {
+    padding: 0.05em 0.15em;
+    border-radius: 3px;
+    background: var(--success);
+    color: var(--on-success);
+    font-weight: 600;
+}
+
+
+/* Version, shown in the header and footer so the build is never in doubt. */
+.brand .version {
+    margin-left: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+}
+
+.site-footer {
+    max-width: 960px;
+    margin: 2.5rem auto 1.5rem;
+    padding: 0.9rem 1.25rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+
+/* The other elements a finding collides with. */
+.related-label {
+    margin: 0.5rem 0 0.2rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+
+/* Reminder that warnings are still open, next to the export buttons. */
+.toolbar-note {
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    background: var(--warning);
+    color: var(--on-warning);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+
+/* Findings grouped by rule. */
+.finding-group {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 0.6rem;
+    background: var(--surface);
+}
+
+.finding-group > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 0.85rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.finding-group > summary::-webkit-details-marker { display: none; }
+
+.finding-group > summary::before {
+    content: "\25b6";
+    font-size: 0.7rem;
+    color: var(--muted);
+}
+
+.finding-group[open] > summary::before { content: "\25bc"; }
+
+.group-title { font-weight: 600; }
+
+.group-rule {
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+
+.group-count {
+    margin-left: auto;
+    min-width: 1.9rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.finding-group.safe .group-count { background: var(--success); color: var(--on-success); }
+.finding-group.suggested .group-count { background: var(--suggested); color: var(--on-suggested); }
+.finding-group.warning .group-count { background: var(--warning); color: var(--on-warning); }
+.finding-group.error .group-count { background: var(--danger); color: var(--on-danger); }
+
+.finding-group > .finding {
+    border-top: 1px solid var(--border);
+    padding: 0.8rem 0.85rem;
+}
+
+/* The list of applied fixes, each individually undoable. */
+.fixed-count > summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.fixed-count > summary::-webkit-details-marker { display: none; }
+
+.fixed-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.85rem;
+}
+
+.fixed-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.3rem;
+}
+
+.fixed-list form { display: inline; margin: 0; }
+
+
+/* Link check results. */
+.link-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.6rem 0 0.8rem;
+}
+
+.link-chip, .link-outcome {
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.link-chip.ok, .link-outcome.ok { background: var(--success); color: var(--on-success); }
+.link-chip.inconclusive, .link-outcome.inconclusive { background: var(--warning); color: var(--on-warning); }
+.link-chip.broken, .link-outcome.broken { background: var(--danger); color: var(--on-danger); }
+.link-chip.skipped, .link-outcome.skipped { background: var(--border); color: var(--text); }
+
+.link-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.link-table th, .link-table td {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.link-table th { font-size: 0.78rem; color: var(--muted); }
+
+.link-table code { word-break: break-all; font-size: 0.82rem; }
+
+.link-count, .link-redirect { font-size: 0.78rem; color: var(--muted); }

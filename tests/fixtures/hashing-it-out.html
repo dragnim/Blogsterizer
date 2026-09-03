@@ -1,0 +1,333 @@
+<html>
+<head>
+<title></title>
+</head>
+<body>
+<p class="code-line" dir="auto">Sometimes it seems that I have the attention span of a cocker spaniel puppy. I start to look at one thing, and then something pops up to distract me and I follow that until another distraction or tangent comes along and then.... well, you get the point. What started out as one blog post has morphed a few times into what you're about to read!</p>
+
+<h2 id="background-and-original-goal" class="code-line">Background and Original Goal</h2>
+<p class="code-line" dir="auto">In a former life, I wrote an APL-based full-text search engine for searching legislative and regulatory texts. At the time, its speed rivalled any of the online search engines. In that governmental context, words like "the" and "of" have significance, for example, the "the" in "the white house" is significant, as are the "of" and "the" in "speaker of the house". Most search engines would ignore those high-frequency "noise" words – mine couldn't. My goal was to be able to search for such phrases without having to examine the data for the high-frequency words. I found this to be an interesting problem at the time (in the 1990s) and subsequently included it 25 years later as the <a href="https://www.dyalog.com/uploads/files/student_competition/2015_problems_phase2.pdf" target="_blank" >2015 APL Problem Solving Competition Phase 2 Applications Problem 2</a>. My original idea for this blog post was to examine approaches to that problem.</p>
+<p class="code-line" dir="auto">The core of the problem was straightforward – you have a list of words (vector of character vectors) and a corresponding vector of frequencies for each word. We'll call these two vectors <code>Words</code> and <code>Freqs</code>. For those interested, the source data I used for my recent effort came from a repository that tracks <a href="https://github.com/IlyaSemenov/wikipedia-word-frequency/blob/master/results/enwiki-2023-04-13.txt" target="_blank" rel="noopener">Wikipedia word frequencies</a>. The task is to, for a given phrase, break the phrase up into individual words (we'll call this <code>words</code>), look up <code>words</code> in <code>Words</code>, and use the indices to extract their frequencies from <code>Freqs</code>. This is basic APL, the sort of thing we do all the time: <code>Freqs[Words ⍳ words]</code>. If we want to consider the case where a word in <code>words</code> isn't found in <code>Words</code>, we can append <code>0</code> to <code>Freqs</code>.</p>
+<p class="code-line" dir="auto">The source for <code>Words</code> and <code>Freqs</code> has 2,765,377 words. To emulate my original work done in the 1990s when we were using only ASCII characters, I decided to remove words containing non-ASCII characters. As a result, we're left with 1,905,526 words.</p>
+
+<h2 id="distraction-1" class="code-line">Tangent #1 – ⎕CSV</h2>
+<p class="code-line" dir="auto"><span style="font-weight: 300;">If you're interested in obtaining <code>Words</code> and <code>Freqs</code> yourself, you can download the </span><a style="font-weight: 300;" href="https://github.com/IlyaSemenov/wikipedia-word-frequency/raw/refs/heads/master/results/enwiki-2023-04-13.txt">raw data file</a><span style="font-weight: 300;"> and use </span><code style="font-style: inherit;">⎕CSV</code><span style="font-weight: 300;"> and a bit of code:</span></p>
+
+<pre><code class="code-line">      (Words Freqs)←⎕CSV⍠('Separator' ' ')('Invert' 2)⊢'{your-path-here}/enwiki-2023-04-13.txt' ''(1 2)
+      (Words Freqs)/⍨←⊂Words(∧/∊)¨⊂⎕C⎕A ⍝ limit words to ASCII alphabetics</code></pre>
+<code>⎕CSV</code> can do some amazing things. Adám Brudzewsky made a very interesting video on <a href="https://www.youtube.com/watch?v=AHoiROI15BA" target="_blank" rel="noopener">Parsing content from text files using <code>⎕CSV</code></a>.
+
+From that list, the five most and least frequent words are:
+<pre><code class="code-line">      ⍉↑5(↑,-⍛↑)¨Words Freqs ⍝ look mom! I used ⍛ (behind)!
+ the          186631452
+ of            88349543
+ in            76718795
+ and           76039670
+ a             54631147
+ byodoinji            3
+ houryuuji            3
+ groendorpen          3
+ witotoanas           3
+ kimely               3
+</code></pre>
+<p class="code-line" dir="auto">Interestingly, it seems a word must occur at least 3 times in Wikipedia to make it into this list. Okay, enough background information...</p>
+<p id="distraction-1" class="code-line"><strong>Distraction #1</strong></p>
+<p class="code-line" dir="auto">In my testing, I found that, when <code>words</code> exceeded 3 elements, things slowed down a lot. For example:</p>
+
+<pre><code class="code-line">      ]RunTime -c "Words⍳'the' 'big' 'dog'" "Words⍳'the' 'big' 'fuzzy' 'dog'"
+  Words⍳'the' 'big' 'dog'         → 1.3E¯4 |       0%                                          
+* Words⍳'the' 'big' 'fuzzy' 'dog' → 2.5E¯1 | +202400% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">One would expect the performance to degrade linearly with the number of words. This appears to be true until you reach 4 elements in the right argument. Let's create some test cases using lists of 1 to 6 words; since 'the' is the first word in the list, these searches should be as fast as possible.</p>
+
+<pre><code class="code-line">      (p1 p2 p3 p4 p5 p6)←1 2 3 4 5 6⍴¨⊂'the'
+</code></pre>
+<p class="code-line" dir="auto">Now let's see what happens when we search for lists of 1 to 4 words:</p>
+
+<pre><code class="code-line">      ]RunTime -c Words⍳p1 Words⍳p2 Words⍳p3 Words⍳p4
+  Words⍳p1 → 2.1E¯2 |     0% ⎕⎕⎕                                      
+* Words⍳p2 → 4.2E¯2 |  +102% ⎕⎕⎕⎕⎕⎕                                   
+* Words⍳p3 → 6.2E¯2 |  +204% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕                               
+* Words⍳p4 → 2.6E¯1 | +1147% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">It looks linear for lengths 1 to 3, but jumps at length 4. If we look at lengths 4 to 6, we see a linear pattern, albeit considerably slower.</p>
+
+<pre><code class="code-line">      ]RunTime -c Words⍳p4 Words⍳p5 Words⍳p6
+  Words⍳p4 → 2.5E¯1 |  0% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕   
+* Words⍳p5 → 2.5E¯1 | +1% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕  
+* Words⍳p6 → 2.6E¯1 | +4% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">What's going on?! After a bit of research (I asked Morten!), I found that Dyalog is hashing <code>Words</code> extemporaneously when <code>words</code> exceeds 3 elements. Because the hash table is not retained, <code>Words</code> is hashed for each iteration in <code>]RunTime</code>, causing the slowdown.</p>
+<p class="code-line" dir="auto">Since creating the hash table is a relatively expensive operation, it only makes sense to do if there is a mechanism to retain the table from which subsequent searches can benefit or the right argument is long enough to justify the upfront cost.</p>
+
+<h2 id="tangent-1---a-brief-history-of-hashing-in-dyalog-apl" class="code-line">Tangent #2 – A Brief History of Hashing in Dyalog APL</h2>
+<p class="code-line" dir="auto">First, a bit of terminology – search functions have a "principal" argument (the array being searched) and a "subject" argument (the items being searched for). In the example above, <code>Words</code> is the principal argument and <code>words</code> is the subject argument.</p>
+<p class="code-line" dir="auto">Hashing, in one form or another, has existed in Dyalog APL from its earliest days; it's an industry standard technique. The interpreter decides, based on a number of factors, whether to hash an array extemporaneously or not. This hashing is an internal process and beyond the user's control.</p>
+<p class="code-line" dir="auto">Dyalog v10.0, released in 2003, gave users the ability to bind a search function like <code>⍳</code> (<em>index of</em>), <code>∊</code> (<em>membership</em>), <code>∩</code> (<em>intersection</em>), <code>∪</code> (<em>union</em>), or <code>~</code> (<em>without</em>) to its principal argument, resulting in a derived function that will, on its first invocation, create and retain a hash table. The disadvantage of this is that the hash table is used exclusively for the bound search function. If you needed to use more than one search function you would bind them individually and each would have its own hash table.</p>
+<p class="code-line" dir="auto">Dyalog v15.0, released in 2016, introduced <code>1500⌶</code> (hash array). This allows the user to mark an array for hashing and, after the first search operation creates the hash table, the hash table is available for all applicable search functions. <code>array←1500⌶array</code> returns a copy of <code>array</code> that is marked for hashing. The hash is created on the first invocation of a search function on <code>array</code>. <code>1(1500⌶)array</code> returns <code>0</code> if <code>array</code> has not been marked for hashing, <code>1</code> if <code>array</code> has been marked for hashing but the hash has not been created yet, and <code>2</code> if <code>array</code> has a hash table. For example:</p>
+
+<pre><code class="code-line">      1 (1500⌶) Words ⍝ not marked yet
+0
+      Words←1500⌶ Words ⍝ mark for hashing
+      1 (1500⌶) Words
+1
+      Words⍳⊂'the' ⍝ perform a search (this is a bit slow)
+      1 (1500⌶) Words ⍝ Words now has a hash table
+2
+      Words,←⊂'thermoflocker' ⍝ add a new word to the tail end
+      1 (1500⌶) Words ⍝ still hashed
+2
+      Words← 1 ↓ Words ⍝ drop something from the front end
+      1 (1500⌶) Words ⍝ no longer hashed nor marked for hashing
+0
+</code></pre>
+<p class="code-line" dir="auto">The size of the hash table can impact performance. In general, larger hash tables result in faster lookups. Dyalog v19.0, released in 2024, introduced <code>8468⌶</code> (hash table size), which allowed the user to adjust the size factor of created hash tables. Its purpose was to allow users to evaluate the potential side effects of a proposed larger hash table size.</p>
+<p class="code-line" dir="auto">Hash tables in Dyalog APL work best with (mostly) static principal arrays. In general, modifying the array invalidates the hash and the array will need to be rehashed. However, there are three forms of modified assignment that will preserve and efficiently update the hash – notice that they all involve the tail end of the principal array.</p>
+
+<pre><code class="code-line">      R,←Y    ⍝ only for scalar or vector R
+      R⍪←Y
+      R↓⍨←Y   ⍝ only for negative singleton Y
+</code></pre>
+<p class="code-line" dir="auto">Dyalog v20.0, released in 2025, implemented hash tables that are 8 times (<code>2*3</code>) larger than previously and also removed <code>8468⌶</code>. More on this later...</p>
+<p id="why-hash" class="code-line"><strong>Why Hash?</strong></p>
+<p class="code-line" dir="auto">The simplistic approach to search functions like <code>⍳</code> and <code>∊</code> is to perform a linear search, starting at the first element of the principal argument and iterating through its elements until you find a match. Obviously, elements that occur near the front will be found faster. In a worst case, searching for an element that's not in the principal argument will have to search its entirety. Doing a linear search on the first word in <code>Words</code> and for a word not found in <code>Words</code> demonstrates this:</p>
+
+<pre><code class="code-line">      ]RunTime -c "Words⍳⊂'the'" "Words⍳⊂'thermoflocker'"
+  Words⍳⊂'the'           → 0.0E0  |    -100%                                          
+* Words⍳⊂'thermoflocker' → 2.0E¯2 | +250200% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">Hashing smooths out this variability and makes all lookups relatively similar in performance, not to mention considerably faster. Doing the same search on <code>aWords</code>, a hashed version of <code>Words</code>, shows this.</p>
+
+<pre><code class="code-line">      ]RunTime -c "aWords⍳⊂'the'" "aWords⍳⊂'thermoflocker'"
+  aWords⍳⊂'the'           → 2.1E¯7 |   0% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕     
+* aWords⍳⊂'thermoflocker' → 2.4E¯7 | +11% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<strong>"I Feel the Need for Speed" (Top Gun, 1986)</strong>
+<p class="code-line" dir="auto">Let's revisit the issue that led us down the hashing path. We'll create a hashed copy of <code>Words</code>, but leave <code>Words</code> alone so that we can compare performance. We'll also create a function bound with <code>⍳</code>.</p>
+
+<pre><code class="code-line">      hWords←1500⌶Words ⍝ hWords is marked for hashing
+      hWords⍳⊂'the'      ⍝ first search creates the hash table
+1
+      fWords←Words∘⍳      ⍝ also create the derived function  
+      fWords ⊂'the'      ⍝ first search creates the hash table
+1
+      p←'the' 'big' 'fuzzy' 'dog'
+      ]RunTime -c "hWords ⍳ p" "fWords p" "Words ⍳ p"
+                                                                        
+  hWords ⍳ p → 0.0E0  |    -100%                                          
+  fWords p → 0.0E0    |    -100%                                          
+  Words ⍳ p  → 3.5E¯1 | +556800% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">Once we have a retained hash table, <strong>all</strong> lookups, no matter the length of <code>words</code>, will be faster.</p>
+
+<h2 id="tangent-2---when-does-a-principal-argument-get-hashed" class="code-line">Tangent #3 – When Does a Principal Argument Get Hashed?</h2>
+<p class="code-line" dir="auto">The short answer is: it depends on a number of factors, such as:</p>
+
+<ul class="code-line">
+ 	<li class="code-line">whether a search function like <code>⍳</code> or <code>∊</code> is used</li>
+ 	<li class="code-line">the sizes of the principal and subject arrays</li>
+ 	<li class="code-line">the datatypes of the arrays – character, integer, floating point, complex</li>
+ 	<li class="code-line">are the arrays simple (depth 0 or 1) or not?</li>
+ 	<li class="code-line">the amount of workspace available – can it fit the hash table?</li>
+</ul>
+<p class="code-line" dir="auto">In short, Dyalog APL hashes an array when it "thinks" doing so will help. However, you know your application and its data better than the interpreter does. In my example above, the interpreter can't know if my search is a one-time thing or something that will be executed many times.</p>
+<p class="code-line" dir="auto">How can you determine where hashing kicks in? What I did was to start with a single element subject argument and increase its length until I saw a "bump" in runtime:</p>
+
+<pre><code class="code-line">      iv←1e7?2*24  ⍝ build 10-million element integer vector with no duplicates
+
+      ⍝ now time lookups for subject arrays of length 1 to 15
+      ⎕SE.UCMD 'runtime -c',∊' iv⍳iv['∘,¨(⍕¨⍳15),¨⊂'⍴5000000]'
+  iv⍳iv[1⍴5000000]  → 1.0E¯3 |     0%                                          
+* iv⍳iv[2⍴5000000]  → 2.1E¯3 |  +100% ⎕                                        
+* iv⍳iv[3⍴5000000]  → 3.2E¯3 |  +206% ⎕                                        
+* iv⍳iv[4⍴5000000]  → 4.3E¯3 |  +315% ⎕⎕                                       
+* iv⍳iv[5⍴5000000]  → 5.3E¯3 |  +412% ⎕⎕                                       
+* iv⍳iv[6⍴5000000]  → 6.2E¯3 |  +503% ⎕⎕⎕                                      
+* iv⍳iv[7⍴5000000]  → 7.3E¯3 |  +609% ⎕⎕⎕                                      
+* iv⍳iv[8⍴5000000]  → 8.4E¯3 |  +718% ⎕⎕⎕⎕                                     
+* iv⍳iv[9⍴5000000]  → 9.3E¯3 |  +800% ⎕⎕⎕⎕                                     
+* iv⍳iv[10⍴5000000] → 1.0E¯2 |  +909% ⎕⎕⎕⎕⎕                                    
+* iv⍳iv[11⍴5000000] → 9.2E¯2 | +8784% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+* iv⍳iv[12⍴5000000] → 9.1E¯2 | +8757% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+* iv⍳iv[13⍴5000000] → 9.2E¯2 | +8818% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+* iv⍳iv[14⍴5000000] → 9.2E¯2 | +8821% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+* iv⍳iv[15⍴5000000] → 9.2E¯2 | +8806% ⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕⎕ 
+</code></pre>
+<p class="code-line" dir="auto">Can you spot where hashing kicks in? That's right – when the subject array exceeds 10 elements. But what if my subject array is only ever a single element? Then you need to determine whether the one-time cost of building the hash table is less than the accumulated time of subsequent lookups. Once hashed, all lookups are faster.</p>
+<p class="code-line" dir="auto">One caveat about using the <code>]RunTime</code> user command – the cost of creating the hash table on the first lookup of a hashed array is lost because <code>]RunTime</code> executes each expression once before collecting timing information. <code>⎕PROFILE</code> provides a more accurate picture:</p>
+
+<pre><code class="code-line">     ∇ r←test_iv;iv;hiv;_;d;l;t;i
+[1]    iv←10000000?2*24 ⍝ 10,000,000 integers in the range 1-2*24
+[2]    hiv←1500⌶iv      ⍝ hiv is marked for hashing
+[3]    i←5000000⊃iv     ⍝ search for the middle element
+[4]   l1:⎕PROFILE¨'stop' 'clear' 'start'
+[5]    _←iv⍳i  ⍝ unhashed lookup
+[6]    _←hiv⍳i ⍝ first hashed lookup (creates hash table)
+[7]    _←hiv⍳i ⍝ subsequent hashed lookup     
+[8]   l2:⎕PROFILE'stop'
+[9]    d←⎕PROFILE'data'
+[10]   l←l1+⍳l2-l1+1 
+[11]   r←(↓'%',⍨⍕⍪⌊0.5+100×¯1+t÷⌊/t),(⎕NR⊃⎕SI)[1+l],⍨3⍕⍪t←d[;4]⌿⍨d[;2]∊l
+[12]   ⎕PROFILE'clear'
+     ∇
+
+      test_iv
+   1044%   1.047  _←iv⍳i  ⍝ unhashed lookup
+ 236125% 216.147  _←hiv⍳i ⍝ first hashed lookup (creates hash table) 
+      0%   0.092  _←hiv⍳i ⍝ subsequent hashed lookup
+</code></pre>
+<p class="code-line" dir="auto">In this case, the cost of creating the hash table is about 200× the cost of doing a single lookup. Subsequent hashed lookups are about 10× faster. It's up to you, and your understanding of your application, to determine whether retaining the hash table is worth it.</p>
+<p id="tanstaafl-there-aint-no-such-thing-as-a-free-lunch" class="code-line"><strong>TANSTAAFL (There Ain't No Such Thing As A Free Lunch)</strong></p>
+<p class="code-line" dir="auto">The other cost of using hash tables for faster searching is that hash tables take up space. Remember when I mentioned that the default hash table size in Dyalog v20.0 is 8x larger than previously? The working theory is that larger hash tables ought to result in faster searches, but how much faster and at what cost in space? Unfortunately there isn't a direct way to measure the hash table size. You have to look at the differential in <code>⎕WA</code> before and after creating the hash table:</p>
+
+<pre><code class="code-line">      ]Config MAXWS
+ MAXWS  1GB
+       
+      cf ⎕SIZE'Words' ⍝ cf is a utility to comma-format numbers
+97,547,968
+
+      cf ⎕WA-⍨(hWords⍳⊂'the')⊢(hWords←1500⌶Words)⊢⎕WA
+268,435,664
+</code></pre>
+<p class="code-line" dir="auto">In my 1GB workspace, the hash table for <code>Words</code> is 268MB and 2.75× the size of the <code>Words</code> itself. In Dyalog v20.0, we removed <code>8468⌶</code> which would allow you to set a scaling factor for the hash table size; there is an experimental I-Beam currently being developed, <code>8470⌶1</code> which does much the same thing. <code>8470⌶1 factor</code>, where <code>factor</code> is an integer in the range <code>¯3</code> to <code>3</code>, will increase or decrease the hash table size by <code>2*factor</code> times. When Dyalog v20.0 was initially released, the default value for <code>factor</code> was <code>0</code> but based on feedback it's now <code>¯3</code> Let's use this to examine its effect on hash table size. I wrote an ugly little operator, <code>set</code>, to build hash tables with specified scaling factors and look at the <code>⎕WA</code> differential after each:</p>
+
+<pre><code class="code-line">      ]Config MAXWS
+ MAXWS  10GB
+      'abcdefg' ('Words'set) ¯4+⍳7
+ aWords  ¯3       33,555,104 
+ bWords  ¯2       67,109,536 
+ cWords  ¯1      134,218,400 
+ dWords   0      268,436,128 
+ eWords   1      536,871,584 
+ fWords   2    1,073,742,496 
+ gWords   3    2,147,484,320 
+</code></pre>
+<p class="code-line" dir="auto">As expected, each hash table grows by a factor of 2.</p>
+
+<h2 id="tangent-3---mapped-files" class="code-line">Tangent #4 – Mapped Files</h2>
+<p class="code-line" dir="auto">The <code>⎕MAP</code> system function associates a mapped file with an array in the workspace. One of the client projects I've worked on involves loading CSV data with 47 million records of 85 fields, totalling about 7.5GB. Each field is stored in a separate <code>⎕MAP</code>-compatible file. In a 4GB workspace, I'm able to map all 85 files and have it seemingly consume only a bit over 2MB of workspace:</p>
+
+<pre><code class="code-line">      ]Config MAXWS
+ MAXWS  4GB 
+
+      ⍝ MapFiles maps 85 files into variables in a namespace named Data
+      cf wa←⎕WA ⋄ MapFiles ⋄ cf wa-⎕WA 
+4,284,076,808
+2,009,600
+
+      cf +/Data.(⎕SIZE ⎕NL ¯2)
+7,577,998,192
+</code></pre>
+<p class="code-line" dir="auto">Pretty neat huh? This makes 7.5GB of data available in a 4GB workspace!</p>
+<p class="code-line" dir="auto">One of the fields, <code>Data.Record_ID</code>, is a 16-column character matrix and has a size of about 760MB:</p>
+
+<pre><code class="code-line">      ⍴Data.Record_ID
+47647772 16
+      cf ⎕SIZE 'Data.Record_ID'
+762,364,392
+</code></pre>
+<p class="code-line" dir="auto">Let's bind <code>⍳</code> with <code>Data.Record_ID</code>:</p>
+
+<pre><code class="code-line">      lFind←Data.Record_ID∘⍳     ⍝ create the bound function
+      lFind 1↑Data.Record_ID     ⍝ create the hash table
+WS FULL
+      fRec 1↑Data.Record_ID
+      ∧
+</code></pre>
+<p class="code-line" dir="auto">Uh oh... It seems we don't have enough room in a 4GB workspace for the hash table. Let's start a new session with 10GB:</p>
+
+<pre><code class="code-line">      ]Config MAXWS
+ MAXWS  10GB 
+      lFind←Data.Record_ID∘⍳
+      cf ⎕WA-⍨(lFind 1↑Data.Record_ID)⊢⎕WA
+8,589,934,752
+</code></pre>
+<p class="code-line" dir="auto">With the Dyalog v20.0 default scaling factor, the hash table takes 8.5GB of my 10GB workspace. That's a hefty chunk. What if we try the smallest scaling factor, <code>¯3</code>?</p>
+
+<pre><code class="code-line">      8470⌶1 ¯3
+0
+      sFind←Data.Record_ID∘⍳
+      cf ⎕WA-⍨(sFind 1↑Data.Record_ID)⊢⎕WA
+ 1,073,741,984
+</code></pre>
+<p class="code-line" dir="auto">That's more manageable and would fit in my 4GB workspace. Why did I use a bound function rather than <code>1500⌶</code> on <code>Data.Record_ID</code>? Currently, <code>1500⌶</code> doesn't work with mapped files, but this may be taken under consideration in the future.</p>
+
+<pre><code class="code-line">      z←1500⌶Data.Record_ID
+DOMAIN ERROR
+      z←1500⌶Data.Record_ID
+            ∧
+</code></pre>
+<h2 id="tangent-4---what-timer-is-it" class="code-line">Tangent #5 – What Timer Is It?</h2>
+<p class="code-line" dir="auto">The <code class="code-line">]runTime</code> user command is a wonderfully easy tool to use to get a rough idea of performance and it remains a staple in my toolbox. <code>runtime</code> is based on <code>cmpx</code> which is found in the <code>dfns</code> workspace. I've found that <code>runtime</code>'s results can sometimes vary significantly from one invocation to the next. Dyalog APL provides several system functions to help collect performance data:</p>
+
+<ul class="code-line">
+ 	<li class="code-line"><a href="https://docs.dyalog.com/20.0/language-reference-guide/system-functions/ai/"><code>⎕AI</code></a>, one of whose elements is cumulative CPU time of your session. You can use the before and after differential of <code>⎕AI</code> to get an approximate idea of the speed of an expression. This is what <code>runtime</code> and <code>cmpx</code> use.</li>
+ 	<li class="code-line"><a href="https://docs.dyalog.com/20.0/language-reference-guide/system-functions/monitor/"><code>⎕MONITOR</code></a>, which can be used to turn monitoring on for specific lines of a function.</li>
+ 	<li class="code-line"><a href="https://docs.dyalog.com/20.0/language-reference-guide/system-functions/profile/"><code>⎕PROFILE</code></a>, the "heavy hitter" of performance measurement. Even though its primary use case is profiling the performance of entire applications, I still find it useful to get impressive-looking, high-precision, performance data.</li>
+</ul>
+<p class="code-line" dir="auto">I have a template that I use when I want to use <code>⎕PROFILE</code> to compare performance of expressions:</p>
+
+<pre><code class="code-line">     ∇ r←timer n;i;d;l;t
+[1]   ⍝ n is the number of iterations to run
+[2]   ⍝ r is [;1] the relative percents based on the fastest expression
+[3]   ⍝      [;2] the accumulated time in ms for the expression
+[4]   ⍝      [;3] the expression
+[5]    ⎕PROFILE¨'stop' 'clear' 'start'
+[6]   l1: :For i :In ⍳n
+[7]   ⍝ insert expressions to time between l1 and l2
+[8]   l2: :EndFor
+[9]    ⎕PROFILE'stop'
+[10]   d←⎕PROFILE'data'
+[11]   l←l1+⍳l2-l1+1
+[12]   r←(↓'%',⍨⍕⍪⌊0.5+100×¯1+t÷⌊/t),({⍵↓⍨+/∧\' '=⍵}¨(⎕NR⊃⎕SI)[1+l]),[1.1]⍨↓3⍕⍪t←d[;4]⌿⍨d[;2]∊l
+[13]   ⎕PROFILE'clear'
+     ∇</code></pre>
+<p id="the-speedspace-tradeoff" class="code-line"><strong>The Speed/Space Tradeoff</strong></p>
+<p class="code-line" dir="auto">We saw earlier that different scaling factors result in different size hash tables, but what's the impact on the speed of searching? Using our 7 hashed versions of <code>Words</code> and running 1,000,000 iterations:</p>
+
+<pre><code class="code-line"> 9%   547.303  _←aWords⍳phrase 
+ 6%   534.984  _←bWords⍳phrase 
+ 0%   504.180  _←cWords⍳phrase 
+ 0%   504.822  _←dWords⍳phrase 
+ 0%   505.082  _←eWords⍳phrase 
+ 0%   505.404  _←fWords⍳phrase 
+ 0%   504.561  _←gWords⍳phrase 
+</code></pre>
+<p class="code-line" dir="auto">In this example, the smallest hash table, <code>aWords</code> runs 9% slower than the 8-times-larger default, <code>dWords</code>. There's no significant speedup using a hash table larger than <code>cWords</code>, at half the default size.</p>
+<p class="code-line" dir="auto">Let's take a look at my 47-million record table. Since <code>1500⌶</code> doesn't work (yet) with mapped files, we'll have to use function binding. First, we'll use the default setting of <code>8470⌶1 0</code> to create an 8.5GB hash table and then use <code>8470⌶1 ¯3</code> to create a hash table 1/8 (<code>2*¯3</code>) the default size or about 1GB.</p>
+
+<pre><code class="code-line">      {}8470⌶1 0 ⋄ b←⎕WA ⋄ lfind←Data.Record_ID∘⍳ ⋄ {}lfind 2↑Data.Record_ID ⋄ cf b-⎕WA
+  8,589,934,808
+      {}8470⌶1 ¯3 ⋄ b←⎕WA ⋄ sfind←Data.Record_ID∘⍳ ⋄ {}sfind 2↑Data.Record_ID ⋄ cf b-⎕WA
+  1,073,742,040
+      recs←Data.Record_ID[10?≢Data.Record_ID;]
+      timer 1e6
+  0%    920.916  _←lfind recs 
+ 11%   1025.790  _←sfind recs 
+</code></pre>
+<p class="code-line" dir="auto">Is an 11% speedup worth an extra 7.5GB of workspace? That's really up to you and your priorities for your application.</p>
+
+<h2 id="the-long-and-winding-blog-with-apologies-to-the-beatles" class="code-line">The Long and Winding Blog (with apologies to The Beatles)</h2>
+<p class="code-line" dir="auto">Let's try to summarize...</p>
+<p class="code-line" dir="auto">If your application needs to search data that's "mostly" static, you can benefit from using retained hash tables. By "mostly", I mean that the only changes to the array are adding or deleting elements from the end. A typical scenario might be, during application initialization, load the data into the workspace, or map a file, and do a search, thereby creating the hash table. Then all subsequent uses of search functions on that array will be considerably faster.</p>
+<p class="code-line" dir="auto">I've got some ideas on things that we at Dyalog Ltd might want to consider doing. Most of these involve empowering the user to have more control over how and when hashing is done. For example, we could:</p>
+
+<ul class="code-line">
+ 	<li class="code-line">make <code>8470⌶1</code> ready for release and publish it so that users can understand how to tune hash table size for their best space/speed tradeoff.</li>
+ 	<li class="code-line">make <code>1500⌶</code> work with mapped files.</li>
+ 	<li class="code-line">make it easier to query the size of a hash table rather than relying on <code>⎕WA</code> differentials.</li>
+ 	<li class="code-line">make it possible to mark an array as "unhashable". Consider the scenario where hash-table-triggering searches are done on an array that's not static. Whenever the array changes, the hash table is discarded, only for a new hash table to be generated on a subsequent search. In this case, it's probably better that the interpreter fall back to a non-hashing approach.</li>
+ 	<li class="code-line">Make it possible to monitor where, when, and how often extemporaneous hashing is done.</li>
+</ul>
+<h2 id="disclaimers---ymmv-your-mileage-may-vary" class="code-line">Disclaimers – YMMV (Your Mileage May Vary)</h2>
+<p class="code-line" dir="auto">The examples shown in this post are a very small sampling of possible hashing scenarios. They were run on my 32GB Lenovo laptop using Windows 11 and Dyalog v20.0. Your environment and hashing opportunities are likely to be different. In writing this post, I hope to have accomplished spurring you on to do your own investigations as there are potentially significant benefits to be explored.</p>
+<p class="code-line" dir="auto">I was caught off guard by the apparent slowdown due to the interpreter repeatedly hashing <code>Words</code> extemporaneously. This led me to try to understand how and when hashing is done and what tools are available to the user. I feel I've been marginally successful at this, but it feels like there is still much to learn.</p>
+
+<h1 id="addendum" class="code-line">Addendum</h1>
+<p class="code-line code-active-line" dir="auto">I wrote the above in January 2026. Sharing my findings with the Dyalog development team set in motion an initiative to review some aspects of doing lookups. One result of this initiative was to change the default scaling factor for hash table size (<code>8470⌶1 x</code>) from <code>0</code> to <code>¯3</code>. This means that, by default, hash tables in the latest releases of Dyalog v20.0 are 1/8 the size that they were before. Changing to a smaller hash table scaling factor results in slightly slower lookups, but at a significant savings in workspace consumed.</p>
+<p class="code-line" dir="auto">Other work looking at the performance of lookup functions is being undertaken.</p>
+
+<h2 id="lookups-are-complicated" class="code-line">Lookups are Complicated</h2>
+<p class="code-line" dir="auto">When you use a lookup function like <code>⍳</code> or <code>∊</code>, the interpreter attempts to pick the best technique, in order from simplest to most complex, between doing a linear search, using a lookup table, or using a hash table. The decision is based on datatype, size, and depth of the arguments, workspace available, and whether the cost of doing the setup of a more complex technique is likely to result in faster overall execution. In general, the interpreter does a good job of deciding. That doesn't mean there aren't exceptions. Again, this is where you come in – you know your data and how it's used.</p>
+</body>
+</html>

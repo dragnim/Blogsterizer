@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}The Blogsterizer{% endblock %}
+{% block content %}
+<header class="page-heading">
+    <h1>Analyse content</h1>
+    <p>Paste HTML or text, or import a public page. The markup is cleaned and every change is reported.</p>
+</header>
+
+{% if error %}
+<div class="notice error" role="alert"><strong>Could not analyse that:</strong> {{ error }}</div>
+{% endif %}
+
+<form class="analysis-form" action="/analyse" method="post">
+    <div class="form-row form-row-top">
+        <fieldset class="source-switch">
+            <legend>Source</legend>
+            {% set current_type = source_type or 'html' %}
+            <label><input type="radio" name="source_type" value="html" {% if current_type == 'html' %}checked{% endif %}> HTML</label>
+            <label><input type="radio" name="source_type" value="text" {% if current_type == 'text' %}checked{% endif %}> Plain text</label>
+            <label><input type="radio" name="source_type" value="url" {% if current_type == 'url' %}checked{% endif %}> URL</label>
+        </fieldset>
+    </div>
+
+    <label class="field source-content">
+        <span id="content-label">HTML</span>
+        <textarea name="content" rows="22" required spellcheck="false" placeholder="Paste your HTML here…">{{ content or '' }}</textarea>
+        <small class="field-help" id="source-help">Existing &lt;code&gt; elements are treated as APL unless they explicitly name another language.</small>
+    </label>
+
+    <label class="field selector-field" hidden>
+        <span>CSS selector <small>(optional)</small></span>
+        <input type="text" name="selector" value="{{ selector or '' }}" placeholder="article, main or .entry-content">
+    </label>
+
+    <details class="profile-details">
+        <summary>What the Blogsterizer does</summary>
+        <ul>
+            <li>Converts legacy APL markup and every unclassified &lt;code&gt; element to <code>&lt;code class="language-apl"&gt;</code>.</li>
+            <li>Strips obsolete classes, inline styles, alignment attributes, <code>data-*</code>, redundant spans and editor cruft.</li>
+            <li>Migrates configured Dyalog presentation and video URLs.</li>
+            <li>Adds <code>class="ex-link"</code>, <code>target="_blank"</code> and <code>rel="noopener"</code> to external links.</li>
+            <li>Keeps current Dyalog-site links internal and removes <code>ex-link</code> from them.</li>
+            <li>Replaces legacy resource icons with readable text links and normalises webinar resource layouts.</li>
+            <li>Checks that ordinary clean-up rules do not alter visible copy.</li>
+        </ul>
+    </details>
+
+    <div class="form-actions">
+        <button class="primary-button" type="submit">Blogsterize</button>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Results – The Blogsterizer{% endblock %}
+{% block header_actions %}<a href="/">New analysis</a>{% endblock %}
+{% block content %}
+<header class="page-heading results-heading">
+    <h1>Results</h1>
+    <p>{{ result.copy_guard_message }}</p>
+</header>
+
+{% if notice %}
+<div class="notice applied" role="status"><strong>Applied:</strong> {{ notice }}</div>
+{% endif %}
+{% if action_error %}
+<div class="notice error" role="alert"><strong>Not applied:</strong> {{ action_error }}</div>
+{% endif %}
+
+<div class="copy-status {% if result.copy_preserved %}passed{% else %}failed{% endif %}" role="status">
+    <strong>{% if result.copy_preserved %}Copy guard passed{% else %}Copy guard failed{% endif %}</strong>
+    <span>{{ result.copy_guard_message }}</span>
+</div>
+
+<section class="finding-summary" aria-label="Filter findings">
+    <span class="finding-summary-label">Findings</span>
+    <button type="button" class="finding-filter active" data-finding-filter="all" aria-pressed="true">
+        All <strong>{{ result.findings|length }}</strong>
+    </button>
+    <button type="button" class="finding-filter safe" data-finding-filter="safe" aria-pressed="false"
+            title="Automatic clean-up already applied to your source. Nothing to do.">
+        Safe <strong>{{ result.counts.safe }}</strong>
+    </button>
+    <button type="button" class="finding-filter suggested" data-finding-filter="suggested" aria-pressed="false"
+            title="Things you may want to change. Still open.">
+        Suggestions <strong>{{ result.counts.suggested }}</strong>
+    </button>
+    <button type="button" class="finding-filter warning" data-finding-filter="warning" aria-pressed="false"
+            title="Something suspicious that needs a decision. Still open.">
+        Warnings <strong>{{ result.counts.warning }}</strong>
+    </button>
+    <button type="button" class="finding-filter error" data-finding-filter="error" aria-pressed="false"
+            title="A core rule failed. Do not publish this output.">
+        Errors <strong>{{ result.counts.error }}</strong>
+    </button>
+    {% if result.fixed_count %}
+    <details class="fixed-count">
+        <summary title="Changes you chose to apply.">Fixed <strong>{{ result.fixed_count }}</strong></summary>
+        <ol class="fixed-list">
+            {% for fix in result.fixes %}
+            <li>
+                <span>{{ fix.message }}</span>
+                <form action="/undo" method="post">
+                    <input type="hidden" name="source" value="{{ source }}">
+                    <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+                    <input type="hidden" name="index" value="{{ loop.index0 }}">
+                    <button type="submit">Undo</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ol>
+    </details>
+    {% endif %}
+</section>
+
+<details class="severity-key">
+    <summary>What do these mean?</summary>
+    <dl>
+        <dt>Safe</dt>
+        <dd>Deterministic clean-up the app already applied to your source: removing
+            <code>code-line</code>, adding <code>ex-link</code>, migrating a configured URL. Nothing
+            for you to do. This number reflects your original source and does not change as you work.</dd>
+        <dt>Suggestion</dt>
+        <dd>Something a human may want to change, such as splitting a long paragraph. Never applied
+            automatically. Where the app can make the change for you, there is a button.</dd>
+        <dt>Warning</dt>
+        <dd>Something suspicious but not necessarily wrong, such as a second <code>&lt;h1&gt;</code>.
+            Needs your decision.</dd>
+        <dt>Error</dt>
+        <dd>A core rule failed. Copy and download are disabled until it is resolved.</dd>
+        <dt>Fixed</dt>
+        <dd>Changes you chose to apply. Undo puts the document back.</dd>
+    </dl>
+</details>
+
+<section class="results-panel" data-open-warnings="{{ result.counts.warning }}">
+    <div class="tabs" role="tablist" aria-label="Results">
+        <button class="tab active" type="button" data-tab="clean" role="tab" aria-selected="true">Clean HTML</button>
+        <button class="tab" type="button" data-tab="blocks" role="tab" aria-selected="false">Block markup</button>
+        <button class="tab" type="button" data-tab="preview" role="tab" aria-selected="false">Preview</button>
+        <button class="tab" type="button" data-tab="changes" role="tab" aria-selected="false">Changes</button>
+        <button class="tab" type="button" data-tab="diff" role="tab" aria-selected="false">Diff</button>
+        <button class="tab" type="button" data-tab="links" role="tab" aria-selected="false">Links</button>
+    </div>
+
+    <div class="tab-panel active" data-panel="clean" role="tabpanel">
+        <div class="toolbar">
+            {% if result.export_safe %}
+            <button type="button" data-copy-target="cleaned-html">Copy HTML</button>
+            <button type="button" data-download-target="cleaned-html" data-filename="blogsterized.html">Download HTML</button>
+            {% if result.counts.warning %}
+            <span class="toolbar-note">{{ result.counts.warning }} unresolved warning{{ 's' if result.counts.warning != 1 }}</span>
+            {% endif %}
+            {% else %}
+            <span class="toolbar-warning">Copy/download disabled because the output has an error or the copy guard failed.</span>
+            {% endif %}
+        </div>
+        <pre><code id="cleaned-html">{{ result.cleaned_html }}</code></pre>
+    </div>
+
+    <div class="tab-panel" data-panel="blocks" role="tabpanel" hidden>
+        <div class="toolbar">
+            {% if result.export_safe %}
+            <button type="button" data-copy-target="block-markup">Copy block markup</button>
+            <button type="button" data-download-target="block-markup" data-filename="blogsterized-blocks.html">Download</button>
+            {% if result.counts.warning %}
+            <span class="toolbar-note">{{ result.counts.warning }} unresolved warning{{ 's' if result.counts.warning != 1 }}</span>
+            {% endif %}
+            {% else %}
+            <span class="toolbar-warning">Copy/download disabled because the output has an error or the copy guard failed.</span>
+            {% endif %}
+        </div>
+        <p class="field-help">Paste this into the WordPress <strong>Code editor</strong> (Ctrl+Shift+Alt+M), not into a paragraph block. Pasting into a paragraph block strips <code>language-apl</code> and <code>ex-link</code>.</p>
+        <pre><code id="block-markup">{{ result.block_markup }}</code></pre>
+    </div>
+
+    <div class="tab-panel" data-panel="preview" role="tabpanel" hidden>
+        <iframe class="preview-frame" title="Preview of cleaned HTML" sandbox srcdoc="{{ result.cleaned_html|e }}"></iframe>
+    </div>
+
+    <div class="tab-panel" data-panel="changes" role="tabpanel" hidden>
+        <div class="changes-heading">
+            <strong>Changes and issues</strong>
+            <span id="finding-count">Showing {{ result.findings|length }} of {{ result.findings|length }}</span>
+        </div>
+        {% if result.findings %}
+        <div class="findings" id="findings-list">
+            {% for group in result.finding_groups %}
+            <details class="finding-group {{ group.severity }}" data-group-severity="{{ group.severity }}"
+                     {% if group.open %}open{% endif %}>
+                <summary>
+                    <span class="group-title">{{ group.title }}</span>
+                    <code class="group-rule">{{ group.rule_id }}</code>
+                    <span class="group-count" data-group-count>{{ group.count }}</span>
+                </summary>
+                {% for finding in group.findings %}
+                <article class="finding {{ finding.severity.value }}" data-finding-severity="{{ finding.severity.value }}">
+                    <div class="finding-heading">
+                        <div>
+                            <code>{{ finding.rule_id }}</code>
+                            <h3>{{ finding.title }}</h3>
+                        </div>
+                        <span>{{ finding.severity.value }}</span>
+                    </div>
+                    <p>{{ finding.message }}</p>
+                    {% if finding.action %}
+                    <form class="finding-action" action="/apply" method="post">
+                        <input type="hidden" name="source" value="{{ source }}">
+                        <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+                        <input type="hidden" name="action" value="{{ finding.action }}">
+                        <input type="hidden" name="params" value="{{ finding.action_params|tojson|forceescape }}">
+                        {% if finding.action_input_label %}
+                        <label class="action-input">
+                            <span>{{ finding.action_input_label }}</span>
+                            <input type="text" name="value" value="{{ finding.action_input_default or '' }}" spellcheck="false">
+                        </label>
+                        {% endif %}
+                        <button type="submit">{{ finding.action_label }}</button>
+                    </form>
+                    {% endif %}
+                    {% if finding.before_html or finding.after_html or finding.action_preview %}
+                    <details>
+                        <summary>Details</summary>
+                        {% if finding.before_html %}<h4>Before</h4><pre><code>{{ finding.before_html }}</code></pre>{% endif %}
+                        {% if finding.related %}
+                        <h4>Conflicts with</h4>
+                        {% for other in finding.related %}
+                        <p class="related-label">Occurrence {{ other.position }}{% if other.text %} — {{ other.text }}{% endif %}</p>
+                        <pre><code>{{ other.html }}</code></pre>
+                        {% endfor %}
+                        {% endif %}
+                        {% if finding.action_preview %}
+                        <h4>After, if you apply this</h4>
+                        {% if finding.action_preview_blocks|length > 1 %}
+                        <div class="preview-blocks">
+                            {% for block in finding.action_preview_blocks %}
+                            <div class="preview-block">
+                                {% if block.tag %}<span class="preview-block-tag">&lt;{{ block.tag }}&gt;</span>{% endif %}
+                                <p>{{ block.text }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <pre><code class="preview">{{ finding.action_preview_markup|safe }}</code></pre>
+                        {% endif %}
+                        {% if finding.after_html %}<h4>After</h4><pre><code>{{ finding.after_html }}</code></pre>{% endif %}
+                    </details>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </details>
+            {% endfor %}
+        </div>
+        <p class="empty-filter-message" id="empty-filter-message" hidden>No findings match this filter.</p>
+        {% else %}
+        <p>No changes or issues were found.</p>
+        {% endif %}
+    </div>
+
+    <div class="tab-panel" data-panel="links" role="tabpanel" {% if not link_results %}hidden{% endif %}>
+        <form action="/check-links" method="post" class="toolbar">
+            <input type="hidden" name="source" value="{{ source }}">
+            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+            <button type="submit">{% if link_results %}Check again{% else %}Check all links{% endif %}</button>
+        </form>
+        <p class="field-help">This one makes real requests to the linked sites, so it is not part of
+        the analysis and does not run on its own. A site that refuses automated requests will answer
+        with a 403 or similar; that is reported as inconclusive, not broken.</p>
+
+        {% if link_results %}
+        <p class="link-summary">
+            <span class="link-chip broken">{{ link_summary.broken }} broken</span>
+            <span class="link-chip inconclusive">{{ link_summary.inconclusive }} inconclusive</span>
+            <span class="link-chip skipped">{{ link_summary.skipped }} not checked</span>
+            <span class="link-chip ok">{{ link_summary.ok }} ok</span>
+        </p>
+        <table class="link-table">
+            <thead><tr><th>Link</th><th>Result</th></tr></thead>
+            <tbody>
+            {% for item in link_results %}
+            <tr class="{{ item.outcome }}">
+                <td>
+                    <code>{{ item.url }}</code>
+                    {% if item.occurrences > 1 %}<span class="link-count">×{{ item.occurrences }}</span>{% endif %}
+                    {% if item.redirected %}<br><span class="link-redirect">redirects to <code>{{ item.final_url }}</code></span>{% endif %}
+                </td>
+                <td><span class="link-outcome {{ item.outcome }}">{{ item.outcome }}</span> {{ item.detail }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <div class="tab-panel" data-panel="diff" role="tabpanel" hidden>
+        <pre><code>{{ result.diff or 'No differences.' }}</code></pre>
+    </div>
+
+</section>
+{% endblock %}

@@ -1,0 +1,110 @@
+name: Dyalog blog
+
+rule_order:
+  - url_rewrites
+  - webinar_layout
+  - structure
+  - apl_markup
+  - legacy_classes
+  - link_policy
+  - cleanup
+  - seo
+  - output_validation
+
+url_rewrites:
+  rewrites:
+    - from: "https://www.dyalog.com/uploads/files/presentations/"
+      to: "https://dyalogprod.gos.dyalog.com/uploads/files/presentations/"
+      description: "Moved a presentation asset to the current Dyalog site."
+    - pattern: "^https://dyalog\\.tv/[^?]+/\\?v=([^&]+).*$"
+      replacement: "https://www.youtube.com/watch?v=\\1"
+      description: "Changed a dyalog.tv video link to a direct YouTube link."
+  # Links on these hosts are *reported*, not rewritten: only the paths named in
+  # `rewrites` above are established migrations. Reverse this list at go-live.
+  host_suggestions:
+    - from: "dyalog.com"
+      to: "dyalogprod.gos.dyalog.com"
+    - from: "www.dyalog.com"
+      to: "dyalogprod.gos.dyalog.com"
+
+apl_markup:
+  legacy_classes:
+    - APLFont
+    - language-apl
+  # Blogsterizer is for Dyalog content: unclassified inline/block code is APL
+  # unless it already has an explicit non-APL language-* class.
+  mark_all_code_as_apl: true
+  wrap_raw_apl_tokens: true
+
+legacy_classes:
+  remove:
+    - fclear
+    - APLFont
+    - code-line
+
+link_policy:
+  internal_hosts:
+    - dyalogprod.gos.dyalog.com
+    - www.dyalog.com
+    - dyalog.com
+  external_class: ex-link
+  open_external_in_new_window: true
+
+cleanup:
+  strip_data_attributes: true
+  remove_attributes:
+    - style
+    - align
+  remove_attribute_values:
+    dir:
+      - auto
+  normalize_nbsp: true
+  remove_comments: true
+  unwrap_empty_spans: true
+  # Handoff 4.3: remove known junk, keep everything else and report it.
+  class_mode: known
+  remove_classes:
+    - fclear
+    - APLFont
+    - code-line
+    - alignleft
+    - alignright
+    - aligncenter
+    - alignnone
+  remove_class_prefixes:
+    - wp-
+    - has-
+    - is-style-
+    - attachment-
+    - size-
+  # Classes the Blogsterizer relies on, so they are never reported as unknown.
+  known_classes:
+    - ex-link
+  known_class_prefixes:
+    - language-
+  report_unknown_classes: true
+  # Syntax-highlighter output (Prism, highlight.js). These spans are generated at
+  # render time, so they are cruft here; unwrapping keeps the text.
+  highlighter_classes:
+    - token
+  highlighter_class_prefixes:
+    - hljs-
+
+rules:
+  url_rewrites: true
+  webinar_layout: true
+  structure:
+    long_paragraph_threshold: 500
+  apl_markup: true
+  legacy_classes: true
+  link_policy: true
+  cleanup: true
+  # Report-only SEO and structure checks. Nothing here changes the HTML.
+  seo:
+    flag_h1: true
+    check_heading_order: true
+    check_fake_headings: true
+    check_image_alt: true
+    check_link_text: true
+    check_duplicate_ids: true
+  output_validation: true
