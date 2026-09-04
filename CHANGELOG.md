@@ -15,6 +15,29 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.4
+
+Three problems reported while processing a real post's images.
+
+* **The post URL is now required.** It names every output file, so leaving it
+  blank produced `blog_post_01.webp` and no way to tell one post's images from
+  another's.
+* **Images can be processed again.** The step used to substitute placeholders
+  into the source and hand that back, so a second run found no `<img>` tags and
+  reported nothing processed. The substitution was also redundant: the
+  `image_placeholder` rule has replaced every `<img>` on every analysis since
+  0.16.0. Removed, so the source is left alone and re-running always works.
+* **An image far below 1200px is flagged.** A 250px-wide file is usually a
+  WordPress thumbnail rather than the original; enlarging it would only make it
+  soft. It is still converted at its own size and reported as *too small*, in
+  the table and in the sidecar, with a note to find the full-size file or drop
+  the image. Not deleted: whether to keep it is an editorial decision.
+
+Consequence of the second fix: the placeholder in the post names the **original**
+file, since the rule runs on every analysis and knows nothing about a particular
+processing run. The Images table and the sidecar carry the mapping to the
+processed name, and the panel says so.
+
 ## 0.19.3
 
 * Fixed the quote block failing validation in WordPress. `core/quote` holds

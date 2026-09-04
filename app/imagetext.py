@@ -228,6 +228,8 @@ def sidecar_text(report: ImageReport, drafts: dict[int, Draft], slug: str) -> st
         lines.append(f"  ALT      {draft.alt}")
         lines.append(f"  TITLE    {draft.title}")
         lines.append(f"  SIZE     {plan.width}x{plan.height}px, {plan.kind}, {plan.encoding}")
+        if plan.undersize:
+            lines.append(f"  WARNING  {plan.note}")
         lines.append(f"  FROM     {plan.source.name if plan.source else '?'}")
         if draft.detail:
             lines.append(f"  NOTE     {draft.detail}")

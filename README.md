@@ -369,6 +369,13 @@ image: `KEPT` (the original page's alt text, written by a person), `UNREVIEWED` 
 environment; without it you get `TODO` entries rather than invented text. **Nothing in that file has
 been checked**, which the file says at the top.
 
+The post URL is required: it names every output file. Processing does not alter the post, so you can
+run it as often as you like. The placeholders name the **original** file — the Images table and the
+sidecar map those to the processed names.
+
+An image much narrower than 1200px is reported as *too small* and converted at its own size, since
+enlarging cannot add detail. It is usually a WordPress thumbnail; find the original or drop the image.
+
 Anything unmatched is reported rather than guessed: an `<img>` with no file in the folder, and a file
 in the folder no `<img>` uses.
 

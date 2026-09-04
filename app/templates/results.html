@@ -252,9 +252,9 @@
                        placeholder="C:\Users\you\Documents\post-images" required>
             </label>
             <label class="field">
-                <span>Post URL or title (used for the filenames)</span>
+                <span>Post URL or title (names every output file)</span>
                 <input type="text" name="post_url" value="{{ post_url or '' }}" spellcheck="false"
-                       placeholder="https://www.dyalog.com/blog/2026/01/hashing-it-out/">
+                       placeholder="https://www.dyalog.com/blog/2026/01/hashing-it-out/" required>
             </label>
             <label class="field">
                 <span>Output folder (optional)</span>
@@ -271,6 +271,10 @@
         file has been checked.</p>
 
         {% if result.images %}
+        <p class="field-help"><strong>The placeholders in the post name the original file, not the
+        processed one.</strong> Use this table to match them up: the placeholder says
+        <code>Image here: &lt;From&gt;</code> and the file you upload is <code>&lt;Output&gt;</code>.
+        The same mapping is in the text file beside the images.</p>
         <table class="link-table">
             <thead><tr><th>Output</th><th>From</th><th>Details</th></tr></thead>
             <tbody>
@@ -281,6 +285,9 @@
                 <td>
                     {% if plan.matched %}
                     {{ plan.width }}&times;{{ plan.height }}px, {{ plan.kind }}, {{ plan.encoding }}
+                    {% if plan.undersize %}
+                    <br><span class="link-outcome inconclusive">too small</span> {{ plan.note }}
+                    {% endif %}
                     {% if plan.existing_alt %}<br><span class="link-redirect">alt kept: {{ plan.existing_alt }}</span>{% endif %}
                     {% else %}
                     <span class="link-outcome broken">not processed</span> {{ plan.note }}

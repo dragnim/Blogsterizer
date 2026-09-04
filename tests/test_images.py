@@ -419,9 +419,12 @@ def test_processing_through_the_endpoint_writes_files_and_a_sidecar(folder, tmp_
     assert "Processed 1 image(s)" in response.text
     assert (out / "blog_hashing-it-out_01.webp").exists()
     assert (out / "hashing-it-out-images.txt").exists()
-    # The placeholder is in the output, and the img tag is gone.
-    assert "Image here: blog_hashing-it-out_01.webp" in response.text
+    # The cleaner's placeholder names the *original* file, because it runs on
+    # every analysis and knows nothing about this processing run. The Images
+    # table and the sidecar carry the mapping to the processed name.
+    assert "Image here: screenshot.png" in response.text
     assert 'src="screenshot.png"' not in response.text
+    assert "blog_hashing-it-out_01.webp" in response.text  # shown in the table
 
 
 def test_a_bad_folder_path_is_reported_not_a_crash(tmp_path):
@@ -457,3 +460,136 @@ def test_placeholder_text_survives_the_cleaner(folder, tmp_path):
     assert "Image here: blog_p_01.webp" in session.cleaned_html
     assert session.counts["error"] == 0
     assert session.copy_preserved
+
+
+# --------------------------------------------------------------------------
+# Reported after processing a real post's images.
+# --------------------------------------------------------------------------
+
+def test_the_post_url_is_required():
+    """Without it every file is called blog_post_01.webp."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.post(
+        "/images",
+        data={
+            "source": '<p><img src="a.png"></p>',
+            "history": "[]",
+            "folder": "/tmp",
+            "post_url": "",
+            "tab": "images",
+        },
+    )
+    assert response.status_code == 200
+    assert "names every output file" in response.text
+    # Nothing was processed.
+    assert "Processed" not in response.text
+
+
+def test_the_field_is_marked_required_in_the_form():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    page = client.post(
+        "/analyse",
+        data={"source_type": "html", "content": '<p><img src="a.png"></p>', "selector": ""},
+    ).text
+    form = BeautifulSoup(page, "html.parser").find("form", class_="image-form")
+    assert form.find("input", {"name": "post_url"}).has_attr("required")
+
+
+def test_images_can_be_processed_again(folder, tmp_path):
+    """Reported: a second run said 0 images.
+
+    The step used to substitute placeholders into the source and hand that back,
+    so the next run had no <img> tags to find. The cleaner's own rule replaces
+    them on every analysis, which made the substitution both redundant and
+    destructive.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    out = tmp_path / "out"
+    data = {
+        "source": '<p><img src="screenshot.png"></p>',
+        "history": "[]",
+        "folder": str(folder),
+        "post_url": "https://www.dyalog.com/blog/2026/01/a-post/",
+        "output_folder": str(out),
+        "tab": "images",
+    }
+
+    first = client.post("/images", data=data)
+    assert "Processed 1 image(s)" in first.text
+
+    # Again, over the top of the first run.
+    second = client.post("/images", data={**data, "overwrite": "1"})
+    assert "Processed 1 image(s)" in second.text
+    assert "0 image(s)" not in second.text
+
+
+def test_the_source_is_not_rewritten_by_processing(folder, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    source = '<p><img src="screenshot.png"></p>'
+    page = client.post(
+        "/images",
+        data={
+            "source": source,
+            "history": "[]",
+            "folder": str(folder),
+            "post_url": "a-post",
+            "output_folder": str(tmp_path / "out"),
+            "tab": "images",
+        },
+    ).text
+    form = BeautifulSoup(page, "html.parser").find("form", class_="image-form")
+    # The form still carries the original HTML, so it can be run again.
+    assert "img" in form.find("input", {"name": "source"})["value"]
+
+
+def test_an_image_far_below_the_target_is_flagged(folder, tmp_path):
+    """A 250px-wide file is usually a WordPress thumbnail, not the original."""
+    small = Image.new("RGB", (250, 300), "white")
+    small.save(folder / "thumb.png")
+
+    report = plan_images('<p><img src="thumb.png"></p>', folder, "a-post")
+    plan = report.plans[0]
+    assert plan.undersize
+    assert "250px wide" in plan.note
+    assert "1200px target" in plan.note
+
+
+def test_an_image_at_the_target_is_not_flagged(folder):
+    report = plan_images('<p><img src="screenshot.png"></p>', folder, "a-post")
+    assert not report.plans[0].undersize
+
+
+def test_an_undersized_image_is_still_processed_at_its_own_size(folder, tmp_path):
+    """Flagged, not dropped: whether to keep it is an editorial decision."""
+    Image.new("RGB", (250, 300), "white").save(folder / "thumb.png")
+    report = process_images(
+        plan_images('<p><img src="thumb.png"></p>', folder, "a-post"), tmp_path / "out"
+    )
+    written = tmp_path / "out" / "blog_a-post_01.webp"
+    assert written.exists()
+    with Image.open(written) as result:
+        assert result.size == (250, 300)
+
+
+def test_the_sidecar_records_the_undersize_warning(folder, tmp_path):
+    Image.new("RGB", (250, 300), "white").save(folder / "thumb.png")
+    report = plan_images('<p><img src="thumb.png"></p>', folder, "a-post")
+    text = sidecar_text(report, draft_all(report), "a-post")
+    assert "WARNING" in text
+    assert "250px wide" in text

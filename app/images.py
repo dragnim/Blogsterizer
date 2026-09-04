@@ -28,6 +28,12 @@ from PIL import Image, ImageOps
 
 
 TARGET_WIDTH = 1200
+
+# An image much narrower than the target cannot be improved by processing: it is
+# usually a WordPress thumbnail rather than the original, and putting it on the
+# new site would look soft. Reported so it can be replaced with the full-size
+# original or dropped. Not deleted: that is an editorial decision.
+UNDERSIZE_RATIO = 0.75
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
 
 # Photographs need lossy compression to be a sensible size. Screenshots of code
@@ -52,6 +58,7 @@ class ImagePlan:
     encoding: str = ""             # near-lossless | lossy
     matched: bool = True
     note: str = ""
+    undersize: bool = False
 
     @property
     def placeholder(self) -> str:
@@ -181,6 +188,14 @@ def plan_images(html: str, folder: Path, slug: str, prefix: str = "blog") -> Ima
             continue
 
         plan.encoding = "near-lossless" if plan.kind == "screenshot" else "lossy"
+        if plan.width is not None and plan.width < TARGET_WIDTH * UNDERSIZE_RATIO:
+            plan.undersize = True
+            plan.note = (
+                f"{plan.width}px wide, well short of the {TARGET_WIDTH}px target. "
+                "Enlarging it would only make it soft, so it was converted at its own "
+                "size. This is often a WordPress thumbnail rather than the original — "
+                "find the full-size file, or drop the image."
+            )
         report.plans.append(plan)
 
     report.unreferenced = sorted(

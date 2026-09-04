@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from app.images import (
     plan_images,
     process_images,
-    replace_with_placeholders,
     slugify,
 )
 from app.imagetext import Draft, draft_all, sidecar_text
@@ -239,12 +238,32 @@ async def prepare_images(
         entries = []
 
     profile = load_profile(DEFAULT_PROFILE_ID)
-    slug = slugify(post_url or "post")
     notice: str | None = None
     error: str | None = None
     report = None
     sidecar = ""
-    updated_source = source
+
+    if not post_url.strip():
+        session = build_session(source, profile, entries)
+        return templates.TemplateResponse(
+            request=request,
+            name="results.html",
+            context={
+                "result": session,
+                "source": source,
+                "history": entries,
+                "active_tab": "images",
+                "image_folder": folder,
+                "post_url": post_url,
+                "action_error": (
+                    "Enter the post URL or title first: it names every output file. "
+                    "Without it the files would be called blog_post_01.webp and you would "
+                    "not be able to tell one post's images from another's."
+                ),
+            },
+        )
+
+    slug = slugify(post_url)
 
     try:
         input_path = Path(folder).expanduser()
@@ -273,15 +292,15 @@ async def prepare_images(
         sidecar = sidecar_text(report, drafts, slug)
         (output_path / f"{slug}-images.txt").write_text(sidecar, encoding="utf-8")
 
-        updated_source, placeholders = replace_with_placeholders(source, report)
         notice = (
-            f"Processed {len(report.written)} image(s) into {output_path} and "
-            f"replaced {len(placeholders)} tag(s) with placeholders."
+            f"Processed {len(report.written)} image(s) into {output_path}. "
+            "The post's <img> tags are replaced with placeholders by the cleaner, so "
+            "you can run this again at any time."
         )
     except (OSError, NotADirectoryError, ValueError) as exc:
         error = f"{type(exc).__name__}: {exc}"
 
-    session = build_session(updated_source, profile, entries)
+    session = build_session(source, profile, entries)
     session.images = report
     session.image_slug = slug
     session.sidecar = sidecar
@@ -291,7 +310,7 @@ async def prepare_images(
         name="results.html",
         context={
             "result": session,
-            "source": updated_source,
+            "source": source,
             "history": entries,
             "active_tab": tab,
             "notice": notice,
