@@ -15,6 +15,21 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.6
+
+* `IMAGE-TOO-SMALL-001` and `IMAGE-NOT-FOUND-001` now have a **Remove the
+  placeholder** button, so an image not being carried over can be dropped and
+  the warning resolved. It takes the wrapping paragraph with it when the
+  placeholder was all of it, and leaves the sentence intact when it was inline.
+* That is the only action allowed to remove text, and it does not get an
+  exemption from the copy guard: it checks that what disappeared was the app's
+  own placeholder wording and refuses if anything of yours went with it. A test
+  asserts no other action has the flag.
+* Fixed the placeholder running into the following word. Old markup often had
+  an image hard against the text it floated beside, which produced
+  `…jpeg]</strong>When Martin joined`. A single space is inserted, and not
+  doubled where one already exists.
+
 ## 0.19.5
 
 * The image placeholder no longer carries `class="image-placeholder"`. The app

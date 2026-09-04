@@ -27,7 +27,7 @@ from app.actions import (
     preview_blocks,
 )
 from app.engine import analyse_html
-from app.images import ImageReport
+from app.images import ImageReport, basename_of
 from app.models import AnalysisResult, Finding, Severity
 
 
@@ -183,6 +183,9 @@ def image_findings(report: ImageReport) -> list[Finding]:
                     before_html=plan.src_attribute,
                     applied=False,
                     metadata={"src": plan.src_attribute},
+                    action="remove_image_placeholder",
+                    action_label="Remove the placeholder",
+                    action_params={"file": basename_of(plan.src_attribute)},
                 )
             )
         elif plan.undersize:
@@ -202,6 +205,9 @@ def image_findings(report: ImageReport) -> list[Finding]:
                         "width": plan.width,
                         "height": plan.height,
                     },
+                    action="remove_image_placeholder",
+                    action_label="Remove the placeholder",
+                    action_params={"file": basename_of(plan.src_attribute)},
                 )
             )
 

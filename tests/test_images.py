@@ -696,3 +696,114 @@ def test_the_warnings_reach_the_changes_tab(folder, tmp_path):
     )
     assert "IMAGE-TOO-SMALL-001" in response.text
     assert "IMAGE-NOT-FOUND-001" in response.text
+
+
+# --------------------------------------------------------------------------
+# Resolving an image warning by dropping the placeholder.
+# --------------------------------------------------------------------------
+
+def test_the_too_small_warning_offers_to_remove_the_placeholder(folder):
+    """Reported: the warning was clear but there was no way to resolve it."""
+    from app.session import image_findings
+
+    Image.new("RGB", (250, 300), "white").save(folder / "thumb.png")
+    report = plan_images('<p><img src="thumb.png"></p>', folder, "a-post")
+    finding = next(
+        f for f in image_findings(report) if f.rule_id == "IMAGE-TOO-SMALL-001"
+    )
+    assert finding.action == "remove_image_placeholder"
+    assert finding.action_params == {"file": "thumb.png"}
+
+
+def test_the_not_found_warning_offers_the_same(folder):
+    from app.session import image_findings
+
+    report = plan_images('<p><img src="gone.png"></p>', folder, "a-post")
+    finding = next(
+        f for f in image_findings(report) if f.rule_id == "IMAGE-NOT-FOUND-001"
+    )
+    assert finding.action == "remove_image_placeholder"
+
+
+def test_removing_a_block_placeholder_takes_its_paragraph():
+    from app.actions import apply_action
+
+    updated, message = apply_action(
+        "<p><strong>Image here: thumb.png</strong></p><p>Real copy stays.</p>",
+        "remove_image_placeholder",
+        {"file": "thumb.png"},
+    )
+    assert updated == "<p>Real copy stays.</p>"
+    assert "thumb.png" in message
+
+
+def test_removing_an_inline_placeholder_leaves_the_sentence():
+    from app.actions import apply_action
+
+    updated, _ = apply_action(
+        "<p>See <strong>[Image here: thumb.png]</strong> and more text.</p>",
+        "remove_image_placeholder",
+        {"file": "thumb.png"},
+    )
+    assert "Image here" not in updated
+    assert "and more text." in updated
+
+
+def test_only_the_named_placeholder_goes():
+    from app.actions import apply_action
+
+    updated, _ = apply_action(
+        "<p><strong>Image here: a.png</strong></p><p><strong>Image here: b.png</strong></p>",
+        "remove_image_placeholder",
+        {"file": "a.png"},
+    )
+    assert "a.png" not in updated
+    assert "b.png" in updated
+
+
+def test_the_action_cannot_be_used_to_delete_real_copy():
+    """It is allowed to remove the app's own wording, and only that."""
+    from app.actions import ActionError, apply_action
+
+    with pytest.raises(ActionError):
+        apply_action(
+            "<p><strong>Important heading</strong></p>",
+            "remove_image_placeholder",
+            {"file": "thumb.png"},
+        )
+
+
+def test_every_other_action_is_still_refused_if_it_changes_copy():
+    """The exemption must not have leaked to the rest."""
+    from app.actions import ACTIONS
+
+    exempt = [action.id for action in ACTIONS.values() if action.removes_own_text]
+    assert exempt == ["remove_image_placeholder"]
+
+
+# --------------------------------------------------------------------------
+# Spacing where the old markup had the image hard against the text.
+# --------------------------------------------------------------------------
+
+def test_an_inline_placeholder_does_not_run_into_the_next_word():
+    """Seen in real output: "…jpeg]When Martin joined Dyalog"."""
+    from app.engine import analyse_html
+    from app.profiles import DEFAULT_PROFILE_ID, load_profile
+
+    result = analyse_html(
+        '<p><img src="martin_01-250x300.jpeg">When Martin joined Dyalog.</p>',
+        load_profile(DEFAULT_PROFILE_ID),
+    )
+    assert "]</strong> When Martin" in result.cleaned_html
+    assert "]</strong>When" not in result.cleaned_html
+
+
+def test_existing_spacing_is_not_doubled():
+    from app.engine import analyse_html
+    from app.profiles import DEFAULT_PROFILE_ID, load_profile
+
+    result = analyse_html(
+        '<p>See <img src="a.png"> for detail.</p>',
+        load_profile(DEFAULT_PROFILE_ID),
+    )
+    assert "  " not in BeautifulSoup(result.cleaned_html, "html.parser").get_text()

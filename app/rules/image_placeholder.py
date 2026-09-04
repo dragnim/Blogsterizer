@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from app.models import Finding, Severity
 from app.rules.base import Rule
@@ -96,6 +96,12 @@ class ImagePlaceholderRule(Rule):
             if inline:
                 marker = soup.new_tag("strong")
                 marker.string = f"[{text}]"
+                # The old markup often had the image hard against the text it
+                # floated beside, so without this the placeholder runs into the
+                # first word: "…jpeg]When Martin joined".
+                following = tag.next_sibling
+                if isinstance(following, NavigableString) and not str(following)[:1].isspace():
+                    following.replace_with(NavigableString(" " + str(following)))
             else:
                 marker = soup.new_tag("p")
                 strong = soup.new_tag("strong")

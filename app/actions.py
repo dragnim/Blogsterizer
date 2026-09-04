@@ -261,6 +261,48 @@ def convert_to_blockquote(soup: BeautifulSoup, params: dict) -> str:
     return f'Changed a <div> to <blockquote>: "{text}".'
 
 
+PLACEHOLDER_RE = re.compile(r"^\[?Image here: (?P<file>.+?)\]?$")
+
+
+def remove_image_placeholder(soup: BeautifulSoup, params: dict) -> str:
+    """Delete an image placeholder, for an image not being carried over.
+
+    For a thumbnail too small to use, or one whose file has gone. The words
+    removed are the app's own placeholder text, so this is checked rather than
+    exempted: if anything else went with it, the action refuses.
+    """
+    wanted = str(params.get("file", "")).strip()
+    if not wanted:
+        raise ActionError("No image was named.")
+
+    removed = 0
+    for strong in list(soup.find_all("strong")):
+        match = PLACEHOLDER_RE.match(strong.get_text(" ", strip=True))
+        if match is None or match.group("file") != wanted:
+            continue
+
+        # Take the wrapping paragraph too if the placeholder was all of it.
+        target = strong
+        parent = strong.parent
+        if (
+            isinstance(parent, Tag)
+            and parent.name in {"p", "figure", "div"}
+            and parent.get_text(" ", strip=True) == strong.get_text(" ", strip=True)
+        ):
+            target = parent
+        target.decompose()
+        removed += 1
+
+    if not removed:
+        raise ActionError(
+            f"No placeholder for {wanted} is left. Re-run the analysis."
+        )
+    return (
+        f"Removed {removed} placeholder{'s' if removed != 1 else ''} for {wanted}. "
+        "The image is not carried over; nothing else was changed."
+    )
+
+
 def unlink(soup: BeautifulSoup, params: dict) -> str:
     """Remove a link, keeping the words it wrapped.
 
@@ -486,6 +528,9 @@ class Action:
     id: str
     label: str
     run: Callable[[BeautifulSoup, dict], str]
+    # Set only where the action removes text the app itself added. Such an
+    # action must check for itself that nothing else went with it.
+    removes_own_text: bool = False
 
 
 ACTIONS: dict[str, Action] = {
@@ -504,6 +549,12 @@ ACTIONS: dict[str, Action] = {
         Action("set_id", "Change this id", set_id),
         Action("rewrite_url", "Repoint this link", rewrite_url),
         Action("unlink", "Remove this link, keeping the text", unlink),
+        Action(
+            "remove_image_placeholder",
+            "Remove this image placeholder",
+            remove_image_placeholder,
+            removes_own_text=True,
+        ),
         Action("rewrite_host", "Repoint every link on this host", rewrite_host),
         Action("convert_to_blockquote", "Make this a blockquote", convert_to_blockquote),
         Action("set_code_language", "Set the code language", set_code_language),
@@ -526,12 +577,45 @@ def apply_action(html: str, action_id: str, params: dict) -> tuple[str, str]:
     before = _visible_text(html)
     message = action.run(soup, params)
     updated = soup.decode(formatter="minimal")
+    after = _visible_text(updated)
 
-    if _visible_text(updated) != before:
+    if after == before:
+        return updated, message
+
+    if not action.removes_own_text:
         raise ActionError(
             f"{action.label} would have changed the visible copy, so it was not applied."
         )
+
+    # The action is allowed to remove the app's own placeholder wording, and
+    # nothing else. Check that what disappeared was only that.
+    removed_words = _removed_words(before, after)
+    allowed = set(re.findall(r"[\w./_-]+", "Image here: " + str(params.get("file", ""))))
+    # Compare on the word itself, ignoring the brackets and colon the
+    # placeholder wraps it in.
+    stray = [
+        word for word in removed_words
+        if re.sub(r"^\W+|\W+$", "", word) not in allowed
+    ]
+    if stray:
+        raise ActionError(
+            f"{action.label} would also have removed {' '.join(stray[:5])!r}, "
+            "which is your copy, so it was not applied."
+        )
     return updated, message
+
+
+def _removed_words(before: str, after: str) -> list[str]:
+    """Words present in `before` that are missing from `after`, in order."""
+    remaining = iter(re.findall(r"\S+", after))
+    missing: list[str] = []
+    current = next(remaining, None)
+    for word in re.findall(r"\S+", before):
+        if word == current:
+            current = next(remaining, None)
+        else:
+            missing.append(word)
+    return missing
 
 
 def preview_action(fragment_html: str, action_id: str, params: dict) -> str | None:

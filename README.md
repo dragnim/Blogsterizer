@@ -373,6 +373,11 @@ The post URL is required: it names every output file. Processing does not alter 
 run it as often as you like. The placeholders name the **original** file — the Images table and the
 sidecar map those to the processed names.
 
+An image you are not carrying over — a thumbnail too small to use, or one whose file has gone — can be
+dropped with **Remove the placeholder**, which resolves the warning. It is the only action permitted to
+remove text, and it verifies that what it removed was the app's own placeholder wording and nothing of
+yours.
+
 Anything needing a decision appears in the **Changes** tab as well as the Images table:
 `IMAGE-TOO-SMALL-001` and `IMAGE-NOT-FOUND-001` as Warnings, `IMAGE-UNUSED-001` as a Suggestion.
 
