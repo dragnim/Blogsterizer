@@ -15,6 +15,28 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.18.0
+
+Both found by running a post about AI coding agents through the app.
+
+* **Code that is evidently not APL is no longer labelled as APL.** Handoff 3.2
+  makes unclassified `<code>` APL, which was right for the old release pages;
+  newer posts mix in shell, CLI flags and other languages, and labelling those
+  `language-apl` makes the site's highlighter render bash as APL. Detection is
+  evidence-based — a shell prompt, a shebang, a long `--flag`, Python or
+  JavaScript syntax, HTML, a foreign filename — and an APL glyph anywhere
+  settles it the other way. Without such evidence, code is still APL.
+  `APL-NOT-APL-001` reports it with a suggested language you can edit; set
+  `apl_markup.flag_non_apl_code: false` for the old behaviour.
+* Unlabelled non-APL code is now a Suggestion (`OUTPUT-CODE-CLASS-002`) rather
+  than an Error. Unlabelled *APL* is still an Error: that invariant is the one
+  that matters and it is tested from both sides.
+* Classic `[caption ...]` shortcodes are removed, keeping the caption wording.
+  Gutenberg does not interpret them, so they rendered as literal text. They are
+  stripped while preparing the source, before the copy guard takes its baseline:
+  the guard would otherwise see `attachment_9685` and `aligncenter` as words
+  being deleted, which is what happened when this was first written as a rule.
+
 ## 0.17.0
 
 * An API key can live in a `.env` file beside `pyproject.toml` rather than having

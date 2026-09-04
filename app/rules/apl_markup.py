@@ -68,6 +68,67 @@ def _inside_code_like(node: NavigableString) -> bool:
     return False
 
 
+# Evidence that a piece of code is *not* APL. Handoff 3.2 makes unclassified
+# code APL, which was right for the old release pages where it always was. Newer
+# posts mix in shell, CLI flags and other languages, and labelling those
+# language-apl makes the site's highlighter render bash as APL.
+#
+# These patterns are deliberately narrow: strong evidence of something else,
+# rather than an attempt to identify the language. Anything without such
+# evidence is still treated as APL.
+NON_APL_PATTERNS = (
+    (re.compile(r"(?m)^\s*[~/][\w./-]*\s*\$\s"), "a shell prompt"),
+    (re.compile(r"(?m)^\s*[$>❯#]\s+\w"), "a shell prompt"),
+    (re.compile(r"^#!/"), "a shebang line"),
+    (re.compile(r"(?<![\w⍨])--[a-z][a-z0-9-]{2,}"), "a long command-line flag"),
+    (re.compile(r"\b(?:git|npm|pip|pip3|sudo|apt-get|brew|curl|wget|docker|kubectl|"
+                r"cd|mkdir|cp|mv|chmod|ssh|scp|tar|make|cmake|systemctl)\s+[\w./-]"),
+     "a shell command"),
+    (re.compile(r"\b(?:def|class|import|from|lambda)\s+\w+.*:"), "Python syntax"),
+    (re.compile(r"\bprint\s*\("), "a print() call"),
+    (re.compile(r"\b(?:function|const|let|var)\s+\w+\s*[=(]"), "JavaScript syntax"),
+    (re.compile(r"=>|\+\+|&&|\|\||==="), "operators APL does not have"),
+    (re.compile(r"</?[a-z][a-z0-9]*(?:\s[^>]*)?>"), "HTML markup"),
+    (re.compile(r"^\s*[{\[].*[}\]]\s*$", re.DOTALL), "a JSON or object literal"),
+    (re.compile(r"\.(?:py|js|ts|sh|json|yaml|yml|cs|go|rs|java|html|css)\b"),
+     "a filename from another language"),
+)
+
+
+def non_apl_evidence(text: str) -> str | None:
+    """Why this code is evidently not APL, or None if there is no such evidence.
+
+    An APL glyph settles it the other way: a shell transcript that prints APL
+    output still contains APL, and mislabelling that is the lesser error.
+    """
+    if UNAMBIGUOUS_RE.search(text):
+        return None
+    for pattern, description in NON_APL_PATTERNS:
+        if pattern.search(text):
+            return description
+    return None
+
+
+def guess_language(text: str) -> str:
+    """A starting suggestion for the user to correct. Never applied on its own."""
+    if (
+        text.startswith("#!/")
+        or re.search(r"^\s*[$>\u276f#]\s+\w", text, re.MULTILINE)
+        or re.search(r"\b(?:git|npm|pip|sudo|docker|curl|cd|mkdir|chmod)\s", text)
+        or re.search(r"(?<![\w\u2368])--[a-z][a-z0-9-]{2,}", text)
+    ):
+        return "language-bash"
+    if re.search(r"\b(?:def|import|lambda)\s|\bprint\s*\(", text):
+        return "language-python"
+    if re.search(r"=>|\b(?:function|const|let)\s", text):
+        return "language-javascript"
+    if re.search(r"^\s*[{\[].*[}\]]\s*$", text, re.DOTALL):
+        return "language-json"
+    if re.search(r"</?[a-z][a-z0-9]*(?:\s[^>]*)?>", text):
+        return "language-html"
+    return "language-plaintext"
+
+
 def _merge_code_class(element: Tag) -> bool:
     classes = list(element.get("class", []))
     # Respect an explicit non-APL language already present. Unclassified code on
@@ -185,6 +246,9 @@ class APLMarkupRule(Rule):
         findings: list[Finding] = []
         legacy_classes = set(self.config.get("legacy_classes", ["APLFont", "language-apl"]))
         mark_all_code = bool(self.config.get("mark_all_code_as_apl", True))
+        # Report code that is evidently another language rather than claiming it
+        # as APL. Set false to restore the older behaviour from handoff 3.2.
+        flag_non_apl = bool(self.config.get("flag_non_apl_code", True))
         wrap_raw_tokens = bool(self.config.get("wrap_raw_apl_tokens", True))
 
         # 1. Convert legacy span/font wrappers to semantic code while preserving
@@ -215,10 +279,37 @@ class APLMarkupRule(Rule):
             )
 
         # 2. Existing inline/block code on Dyalog pages is APL unless it carries
-        # an explicit non-APL language-* class.
+        # an explicit non-APL language-* class, or is evidently something else.
         if mark_all_code:
-            for element in soup.find_all("code"):
+            for index, element in enumerate(soup.find_all("code")):
                 before = str(element)
+                text = element.get_text()
+                evidence = non_apl_evidence(text) if flag_non_apl else None
+
+                if evidence:
+                    suggested = guess_language(text)
+                    findings.append(
+                        Finding(
+                            rule_id="APL-NOT-APL-001",
+                            title="Code that is probably not APL",
+                            message=(
+                                f"This code contains {evidence} and no APL glyph, so it was "
+                                "left unclassified rather than labelled as APL. Set the right "
+                                "language, or apply APL if it is APL after all."
+                            ),
+                            severity=Severity.SUGGESTED,
+                            before_html=before[:400],
+                            applied=False,
+                            metadata={"evidence": evidence, "suggested": suggested},
+                            action="set_code_language",
+                            action_label="Set the language",
+                            action_params={"index": index},
+                            action_input_label="Class",
+                            action_input_default=suggested,
+                        )
+                    )
+                    continue
+
                 if _merge_code_class(element):
                     findings.append(
                         Finding(
@@ -240,16 +331,38 @@ class APLMarkupRule(Rule):
                 if pre.find("code") is not None or pre.find(True) is not None:
                     continue
                 before = str(pre)
+                text = pre.get_text()
+                evidence = non_apl_evidence(text) if flag_non_apl else None
                 code = soup.new_tag("code")
-                code["class"] = ["language-apl"]
-                code.string = pre.get_text()
+                if evidence:
+                    # Still made semantic, but not claimed as APL.
+                    findings.append(
+                        Finding(
+                            rule_id="APL-NOT-APL-001",
+                            title="Code block that is probably not APL",
+                            message=(
+                                f"This block contains {evidence} and no APL glyph, so it was "
+                                "wrapped in <code> without a language. Set the right language."
+                            ),
+                            severity=Severity.SUGGESTED,
+                            before_html=before[:400],
+                            applied=False,
+                            metadata={"evidence": evidence, "suggested": guess_language(text)},
+                        )
+                    )
+                else:
+                    code["class"] = ["language-apl"]
+                code.string = text
                 pre.clear()
                 pre.append(code)
                 findings.append(
                     Finding(
                         rule_id=self.rule_id,
                         title="APL code block normalised",
-                        message='Wrapped a bare <pre> block in <code class="language-apl">.',
+                        message=(
+                            "Wrapped a bare <pre> block in a semantic <code> element"
+                            + ("." if evidence else ' with class="language-apl".')
+                        ),
                         severity=Severity.SAFE,
                         before_html=before,
                         after_html=str(pre),

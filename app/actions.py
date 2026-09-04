@@ -148,6 +148,25 @@ def set_id(soup: BeautifulSoup, params: dict) -> str:
     return f'Changed id="{value}" to id="{new_id}".'
 
 
+def set_code_language(soup: BeautifulSoup, params: dict) -> str:
+    """Put a language-* class on one <code> element."""
+    index = int(params.get("index", 0))
+    value = str(params.get("value", "")).strip()
+    element = _nth(soup, "code", index)
+
+    if not value:
+        raise ActionError("Enter a class, such as language-bash.")
+    if not re.fullmatch(r"language-[a-z0-9][a-z0-9+#-]*", value):
+        raise ActionError(
+            "A language class looks like language-bash, language-python or language-apl."
+        )
+
+    classes = [name for name in element.get("class", []) if not name.startswith("language-")]
+    classes.append(value)
+    element["class"] = classes
+    return f'Set class="{value}" on one code element.'
+
+
 def rewrite_url(soup: BeautifulSoup, params: dict) -> str:
     """Repoint every link with a given href at a new URL.
 
@@ -322,6 +341,7 @@ ACTIONS: dict[str, Action] = {
         Action("split_paragraph", "Split this paragraph", split_paragraph),
         Action("set_id", "Change this id", set_id),
         Action("rewrite_url", "Repoint this link", rewrite_url),
+        Action("set_code_language", "Set the code language", set_code_language),
         Action("split_paragraph_lines", "Split at the line breaks", split_paragraph_lines),
     )
 }

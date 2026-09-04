@@ -156,6 +156,18 @@ Every action is structural. Each one compares the visible text before and after 
 if a single word moved, so an action can change `<p>` structure or a heading level but never the
 copy. Actions that would need new wording — rewriting "click here", for example — are reported only.
 
+### Code that is not APL
+
+Unclassified `<code>` is treated as APL, because on Dyalog content it usually is. Where there is
+strong evidence of another language — a shell prompt, a shebang, a long `--flag`, Python or JavaScript
+syntax, HTML, a filename like `script.py` — the code is left unclassified and reported as
+`APL-NOT-APL-001`, with a suggested class you can edit before applying. An APL glyph anywhere in the
+code settles it the other way: a shell transcript that prints APL output still contains APL.
+
+Unlabelled non-APL code is a Suggestion. Unlabelled **APL** is an Error, because losing
+`language-apl` from real APL is a rule failure. Set `apl_markup.flag_non_apl_code: false` in
+`profiles/blog.yaml` to restore the older behaviour from handoff 3.2.
+
 ### SEO and structure checks
 
 Report-only (handoff 10): these never change the HTML.

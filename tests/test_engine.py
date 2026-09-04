@@ -244,13 +244,24 @@ def test_output_validation_reports_core_invariant_if_link_rule_is_disabled():
 
 
 def test_output_validation_reports_unclassified_code_if_apl_rule_is_disabled():
+    """Unlabelled APL is an error; unlabelled non-APL is a suggestion.
+
+    Some posts contain shell and other languages, so the app no longer claims
+    every unclassified <code> as APL. Only losing a class from code that really
+    is APL is a rule failure.
+    """
     import copy
 
     broken_profile = copy.deepcopy(profile())
     broken_profile["rules"]["apl_markup"] = False
-    result = analyse_html('<p><code>words</code></p>', broken_profile)
-    assert any(f.rule_id == 'OUTPUT-CODE-CLASS-001' for f in result.findings)
-    assert not result.export_safe
+
+    apl = analyse_html('<p><code>A\u21901 2 3</code></p>', broken_profile)
+    assert any(f.rule_id == 'OUTPUT-CODE-CLASS-001' for f in apl.findings)
+    assert not apl.export_safe
+
+    ascii_only = analyse_html('<p><code>words</code></p>', broken_profile)
+    assert any(f.rule_id == 'OUTPUT-CODE-CLASS-002' for f in ascii_only.findings)
+    assert ascii_only.export_safe
 
 
 def test_normal_linked_blog_image_becomes_a_placeholder_not_a_resource_link():

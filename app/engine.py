@@ -185,10 +185,45 @@ def extract_body_html(source_html: str) -> str:
     return source_html
 
 
+CAPTION_OPEN = re.compile(r"\[caption\b[^\]]*\]")
+CAPTION_CLOSE = re.compile(r"\[/caption\]")
+
+
+def strip_caption_shortcodes(source_html: str) -> tuple[str, int]:
+    """Remove classic [caption ...] wrappers, keeping the caption wording.
+
+    Gutenberg does not interpret shortcodes, so these would render as literal
+    text in the post. The brackets and their attributes are markup, so they are
+    removed here, before the copy guard takes its baseline — the guard would
+    otherwise see `attachment_9685` and `aligncenter` as words being deleted.
+    The caption itself is the author's copy and is left exactly as written.
+    """
+    stripped, opened = CAPTION_OPEN.subn("", source_html)
+    stripped, closed = CAPTION_CLOSE.subn("", stripped)
+    return stripped, opened + closed
+
+
 def analyse_html(source_html: str, profile: dict[str, Any]) -> AnalysisResult:
     source_html = extract_body_html(source_html)
+    source_html, captions_removed = strip_caption_shortcodes(source_html)
     soup = BeautifulSoup(source_html, "html.parser")
     findings: list[Finding] = []
+
+    if captions_removed:
+        findings.append(
+            Finding(
+                rule_id="CAPTION-SHORTCODE-001",
+                title="Caption shortcodes removed",
+                message=(
+                    f"Removed {captions_removed} classic [caption] shortcode marker(s). "
+                    "Gutenberg does not interpret them, so they would have shown as "
+                    "literal text. The caption wording was left as written."
+                ),
+                severity=Severity.SAFE,
+                applied=True,
+                metadata={"count": captions_removed},
+            )
+        )
 
     for rule in _build_rules(profile):
         before_html = soup.decode(formatter="minimal")

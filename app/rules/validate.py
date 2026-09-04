@@ -6,9 +6,19 @@ from bs4 import BeautifulSoup, NavigableString
 
 from app.models import Finding, Severity
 from app.rules.base import Rule
-from app.rules.apl_markup import _inside_code_like, _raw_candidates
+from app.rules.apl_markup import APL_SIGNAL_RE, _inside_code_like, _raw_candidates
 from app.rules.links import _is_http_link, _normalise_host
 from app.rules.structure import _looks_like_legacy_resource_icon, _resource_kind
+
+
+def _contains_apl(text: str) -> bool:
+    """Whether this code contains APL.
+
+    Both tiers count here, unlike raw-token detection in prose: inside a <code>
+    element an arrow or a multiplication sign is strong evidence, where in a
+    sentence it is not.
+    """
+    return bool(APL_SIGNAL_RE.search(text))
 
 
 class OutputValidationRule(Rule):
@@ -56,13 +66,33 @@ class OutputValidationRule(Rule):
 
         for code in soup.find_all("code"):
             language_classes = [name for name in code.get("class", []) if name.startswith("language-")]
-            if not language_classes:
+            if language_classes:
+                continue
+            # Code the APL rule deliberately left alone, because it is evidently
+            # another language, is a Suggestion for the user to label. Only
+            # unlabelled *APL* is a rule failure.
+            if _contains_apl(code.get_text()):
                 findings.append(
                     self._error(
-                        "Unclassified code remains",
-                        "Every code element in a Dyalog profile must have an explicit language-* class.",
+                        "Unclassified APL code remains",
+                        "This code contains APL glyphs but has no language-* class.",
                         str(code),
                         code="OUTPUT-CODE-CLASS-001",
+                    )
+                )
+            else:
+                findings.append(
+                    Finding(
+                        rule_id="OUTPUT-CODE-CLASS-002",
+                        title="Code has no language",
+                        message=(
+                            "This code has no language-* class. It does not look like APL, "
+                            "so nothing was assumed; set the language so the site "
+                            "highlights it correctly."
+                        ),
+                        severity=Severity.SUGGESTED,
+                        before_html=str(code)[:300],
+                        applied=False,
                     )
                 )
 

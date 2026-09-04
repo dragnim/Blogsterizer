@@ -10,6 +10,7 @@ rule_order:
   - cleanup
   - seo
   - image_placeholder
+  - captions
   - output_validation
 
 url_rewrites:
@@ -29,6 +30,10 @@ url_rewrites:
       to: "dyalogprod.gos.dyalog.com"
 
 apl_markup:
+  # Report code that is evidently another language rather than claiming it as
+  # APL. Set false to restore the older behaviour, where every unclassified
+  # <code> became APL (handoff 3.2).
+  flag_non_apl_code: true
   legacy_classes:
     - APLFont
     - language-apl
@@ -104,6 +109,9 @@ rules:
   # being migrated away from, and the images are processed separately.
   image_placeholder:
     replace_images: true
+  # Classic-editor [caption] shortcodes render as literal text in Gutenberg.
+  captions:
+    strip_caption_shortcodes: true
   # Report-only SEO and structure checks. Nothing here changes the HTML.
   seo:
     flag_h1: true
