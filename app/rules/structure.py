@@ -386,6 +386,37 @@ class StructureRule(Rule):
                 )
             )
 
+        # An indented <div> used as a pull-quote. Two corpus posts did this, and
+        # both were the only thing in their post landing in a Custom HTML block.
+        for index, div in enumerate(soup.find_all("div")):
+            style = str(div.get("style", ""))
+            if "margin" not in style:
+                continue
+            if div.find(["div", "table", "ul", "ol", "h1", "h2", "h3", "h4"]):
+                continue
+            text = div.get_text(" ", strip=True)
+            if not text:
+                continue
+            findings.append(
+                Finding(
+                    rule_id="INDENTED-DIV-001",
+                    title="Indented div used as a quotation",
+                    message=(
+                        "This <div> is indented with a margin, which is how the classic "
+                        "editor made a pull-quote. There is no Gutenberg block for a bare "
+                        "<div>, so it becomes a Custom HTML block; a <blockquote> is "
+                        "probably what it means. No change was made."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html=str(div)[:400],
+                    applied=False,
+                    metadata={"style": style},
+                    action="convert_to_blockquote",
+                    action_label="Make this a blockquote",
+                    action_params={"index": index},
+                )
+            )
+
         long_paragraph_threshold = int(self.config.get("long_paragraph_threshold", 650))
         paragraphs = soup.find_all("p")
 

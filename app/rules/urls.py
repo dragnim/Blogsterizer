@@ -83,6 +83,41 @@ class URLRewriteRule(Rule):
                 break
 
         findings: list[Finding] = []
+
+        # One action per host, so 40 links across a post can be repointed in a
+        # single press. The per-URL suggestions below remain for anything that
+        # needs handling individually.
+        for move in moves:
+            host = str(move["from"])
+            target_host = str(move["to"])
+            matching = [
+                href for href in seen
+                if urlparse(href).netloc.lower() == host.lower()
+            ]
+            if len(matching) < 2:
+                continue
+            findings.append(
+                Finding(
+                    rule_id="URL-HOST-ALL-001",
+                    title=f"{len(matching)} links still on {host}",
+                    message=(
+                        f"{len(matching)} links point at {host}. Repointing them all at "
+                        f"{target_host} changes only the host; every path, query and "
+                        "fragment is preserved exactly. Check the files exist there first "
+                        "\u2014 the Links tab can do that for you."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html="<br>".join(sorted(matching)[:12]),
+                    applied=False,
+                    metadata={"host": host, "target_host": target_host, "count": len(matching)},
+                    action="rewrite_host",
+                    action_label=f"Repoint all {len(matching)}",
+                    action_params={"from_host": host},
+                    action_input_label="New host",
+                    action_input_default=target_host,
+                )
+            )
+
         for href, (target, anchor_html) in sorted(seen.items()):
             count = len(soup.find_all("a", href=href))
             findings.append(

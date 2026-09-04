@@ -11,3 +11,9 @@ dist/
 .vscode/
 .env
 *.patch
+
+# Real blog HTML used to check changes against actual content. Not part of the
+# app: copy posts in locally, they are never committed. hashing-it-out.html is
+# the one exception, kept because handoff 15 names it as a regression fixture.
+tests/fixtures/*
+!tests/fixtures/hashing-it-out.html

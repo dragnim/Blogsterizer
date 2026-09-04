@@ -16,7 +16,7 @@ from app.images import (
     slugify,
 )
 from app.imagetext import Draft, draft_all, sidecar_text
-from app.linkcheck import check_links, summarise
+from app.linkcheck import check_links, check_migration_targets, summarise
 from app.postseo import draft_post_seo
 from app.session import build_session
 from app.version import __version__
@@ -331,6 +331,7 @@ async def check_document_links(
     request: Request,
     source: str = Form(...),
     history: str = Form("[]"),
+    mode: str = Form("current"),
 ):
     """Check the links in the current document. Requests the network, on demand.
 
@@ -343,8 +344,14 @@ async def check_document_links(
     except json.JSONDecodeError:
         entries = []
 
-    session = build_session(source, load_profile(DEFAULT_PROFILE_ID), entries)
-    results = await check_links(session.cleaned_html)
+    profile = load_profile(DEFAULT_PROFILE_ID)
+    session = build_session(source, profile, entries)
+
+    if mode == "targets":
+        moves = profile.get("url_rewrites", {}).get("host_suggestions", [])
+        results = await check_migration_targets(session.cleaned_html, moves)
+    else:
+        results = await check_links(session.cleaned_html)
 
     return templates.TemplateResponse(
         request=request,
@@ -355,6 +362,7 @@ async def check_document_links(
             "history": entries,
             "link_results": results,
             "link_summary": summarise(results),
+            "link_mode": mode,
         },
     )
 

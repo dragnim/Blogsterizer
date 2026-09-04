@@ -15,6 +15,49 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.0
+
+Built from running 22 real posts through the app. The frequency mattered: a
+pattern in one post is a curiosity, one in seventeen is a rule.
+
+The posts themselves are **not** in the repository — they are Dyalog content, not
+part of the app. `tests/test_corpus.py` runs whatever is in `tests/fixtures/` and
+skips when it is empty, so you can copy real posts in to check a change and they
+will never be committed. Only `hashing-it-out.html` is kept, because handoff 15
+names it as a required regression fixture.
+
+**Old-site links — 17 of 22 posts, 40 links.**
+
+* `URL-HOST-ALL-001` offers one action to repoint every link on a host. Only the
+  host changes; path, query and fragment are preserved exactly. The per-URL
+  suggestions remain for anything needing individual attention.
+* The **Links** tab can now check *where old-site links would point*, rather than
+  where they point now. Anything broken there is a file not yet uploaded to the
+  dev site — repointing a link to a URL that does not exist would turn a working
+  link into a dead one. The host mapping is configuration, so the eventual switch
+  back to `dyalog.com` is a config edit.
+
+**Smaller things found across the set.**
+
+* `class=" language-apl"` with a leading space appeared in 6 posts, 180 times.
+  The parser always normalised it correctly, but silently: one post had 58 such
+  elements and produced almost no findings. Now reported.
+* `[embedyt]…[/embedyt]` video shortcodes become a real link, which then gets the
+  external-link policy. Gutenberg does not interpret the shortcode.
+* A paragraph containing only `&nbsp;` is removed; in Gutenberg it becomes an
+  empty block. A paragraph holding only an image is not "empty".
+* `width=` and `height=` on tables and cells are removed: sizing belongs to the
+  stylesheet, in the same family as `align=` (handoff 4.1).
+* `INDENTED-DIV-001` suggests turning a margin-indented `<div>` into a
+  `<blockquote>`. Two posts used one as a pull-quote, and they were the only two
+  things in the whole corpus landing in a Custom HTML block. Applying it clears
+  the last fallbacks.
+* `VIDEO-ID-001` warns when a YouTube id is not 11 valid characters. One post's
+  source had `?v=https:aIqDxwlcoVU`, which the migration faithfully carried into
+  a dead URL. Handoff 6.3 forbids repairing it, so it is reported.
+* `NESTED-CODE-001` warns about a `<code>` inside a `<code>`, which one post's
+  malformed source produced.
+
 ## 0.18.0
 
 Both found by running a post about AI coding agents through the app.

@@ -221,7 +221,8 @@ def test_links_tab_offers_the_check_but_does_not_run_it():
         },
     ).text
     assert 'data-tab="links"' in page
-    assert "Check all links" in page
+    assert "Check the links as they are" in page
+    assert "Check where old-site links would point" in page
     # Nothing was requested, so there is no table yet.
     assert "link-table" not in page
 
@@ -238,3 +239,135 @@ def test_check_links_endpoint_renders_a_report():
     assert response.status_code == 200
     assert "link-table" in response.text
     assert "2 not checked" in response.text
+
+
+# --------------------------------------------------------------------------
+# Repoint every link on a host at once
+# --------------------------------------------------------------------------
+
+def test_a_host_with_several_links_offers_one_action_for_all_of_them():
+    """17 of 22 corpus posts link to the old site; some have several."""
+    html = (
+        '<p><a href="https://www.dyalog.com/a/">a</a>'
+        '<a href="https://www.dyalog.com/b/">b</a>'
+        '<a href="https://www.dyalog.com/c.pdf">c</a></p>'
+    )
+    finding = next(f for f in clean(html).findings if f.rule_id == "URL-HOST-ALL-001")
+    assert finding.action == "rewrite_host"
+    assert finding.action_label == "Repoint all 3"
+    assert finding.action_input_default == "dyalogprod.gos.dyalog.com"
+    assert not finding.applied
+
+
+def test_a_single_old_site_link_gets_no_repoint_all():
+    html = '<p><a href="https://www.dyalog.com/only/">one</a></p>'
+    assert not [f for f in clean(html).findings if f.rule_id == "URL-HOST-ALL-001"]
+
+
+def test_repointing_a_host_preserves_every_path_query_and_fragment():
+    html = (
+        '<p><a href="https://www.dyalog.com/uploads/a%20b.pdf?x=1#frag">a</a>'
+        '<a href="https://www.dyalog.com/b/">b</a>'
+        '<a href="https://docs.dyalog.com/keep/">other host</a></p>'
+    )
+    updated, message = apply_action(
+        html,
+        "rewrite_host",
+        {"from_host": "www.dyalog.com", "value": "dyalogprod.gos.dyalog.com"},
+    )
+    assert "https://dyalogprod.gos.dyalog.com/uploads/a%20b.pdf?x=1#frag" in updated
+    assert "https://dyalogprod.gos.dyalog.com/b/" in updated
+    # A different host is untouched.
+    assert "https://docs.dyalog.com/keep/" in updated
+    assert "2 links" in message
+
+
+def test_repointing_a_host_changes_no_copy():
+    html = '<p>See <a href="https://www.dyalog.com/a/">the notes</a> and <a href="https://www.dyalog.com/b/">more</a>.</p>'
+    updated, _ = apply_action(
+        html, "rewrite_host", {"from_host": "www.dyalog.com", "value": "example.org"}
+    )
+    before = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    after = BeautifulSoup(updated, "html.parser").get_text(" ", strip=True)
+    assert before == after
+
+
+def test_a_scheme_prefixed_host_is_accepted():
+    """Pasting https://host/ into the box should work."""
+    html = '<p><a href="https://www.dyalog.com/a/">a</a></p>'
+    updated, _ = apply_action(
+        html,
+        "rewrite_host",
+        {"from_host": "www.dyalog.com", "value": "https://dyalogprod.gos.dyalog.com/"},
+    )
+    assert 'href="https://dyalogprod.gos.dyalog.com/a/"' in updated
+
+
+def test_a_nonsense_host_is_refused():
+    html = '<p><a href="https://www.dyalog.com/a/">a</a></p>'
+    for bad in ("", "not a host", "has spaces.com"):
+        with pytest.raises(ActionError):
+            apply_action(html, "rewrite_host", {"from_host": "www.dyalog.com", "value": bad})
+
+
+def test_repointing_to_the_same_host_is_refused():
+    html = '<p><a href="https://www.dyalog.com/a/">a</a></p>'
+    with pytest.raises(ActionError, match="already use"):
+        apply_action(
+            html, "rewrite_host", {"from_host": "www.dyalog.com", "value": "www.dyalog.com"}
+        )
+
+
+# --------------------------------------------------------------------------
+# Checking where a link would point after migration
+# --------------------------------------------------------------------------
+
+MOVES = [{"from": "www.dyalog.com", "to": "dyalogprod.gos.dyalog.com"}]
+
+
+def test_migration_targets_map_old_urls_to_new_ones():
+    from app.linkcheck import migration_targets
+
+    targets = migration_targets(
+        '<a href="https://www.dyalog.com/uploads/a%20b.pdf?x=1">a</a>'
+        '<a href="https://docs.dyalog.com/other/">b</a>',
+        MOVES,
+    )
+    assert targets == {
+        "https://www.dyalog.com/uploads/a%20b.pdf?x=1":
+            "https://dyalogprod.gos.dyalog.com/uploads/a%20b.pdf?x=1"
+    }
+
+
+def test_a_post_with_no_old_site_links_has_nothing_to_check():
+    from app.linkcheck import check_migration_targets
+
+    assert asyncio.run(check_migration_targets('<a href="https://example.org/">x</a>', MOVES)) == []
+
+
+def test_the_target_check_reports_which_old_link_it_came_from():
+    """So a broken result names the file to upload."""
+    from app.linkcheck import check_migration_targets
+
+    results = asyncio.run(
+        check_migration_targets('<a href="https://www.dyalog.com/x/">x</a>',
+                                [{"from": "www.dyalog.com", "to": "127.0.0.1"}])
+    )
+    assert len(results) == 1
+    assert results[0].texts == ["https://www.dyalog.com/x/"]
+    # A private address is refused rather than requested.
+    assert results[0].outcome == "skipped"
+
+
+def test_the_target_mode_says_it_is_checking_the_new_site():
+    client = TestClient(app)
+    response = client.post(
+        "/check-links",
+        data={
+            "source": '<p><a href="https://www.dyalog.com/a/">a</a></p>',
+            "history": "[]",
+            "mode": "targets",
+        },
+    )
+    assert response.status_code == 200
+    assert "not been uploaded" in response.text

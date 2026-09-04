@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, NavigableString
@@ -61,6 +62,53 @@ class OutputValidationRule(Rule):
                         "APL markup should use <code class=\"language-apl\">, not a span/font wrapper.",
                         str(element),
                         code="OUTPUT-APL-WRAPPER-001",
+                    )
+                )
+
+        # A YouTube video id is 11 characters of [A-Za-z0-9_-]. One corpus post
+        # had ?v=https:aIqDxwlcoVU in the source, which the dyalog.tv migration
+        # faithfully carried into a youtube.com URL that cannot work. Handoff 6.3
+        # forbids repairing it, so it is reported instead.
+        for anchor_tag in soup.find_all("a", href=True):
+            href = str(anchor_tag["href"])
+            match = re.search(r"youtube\.com/watch\?v=([^&]+)", href)
+            if not match:
+                continue
+            video_id = match.group(1)
+            if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+                continue
+            findings.append(
+                Finding(
+                    rule_id="VIDEO-ID-001",
+                    title="Video id does not look valid",
+                    message=(
+                        f'The video id "{video_id}" is not 11 characters of letters, '
+                        "digits, hyphen or underscore, so this link will not play. The id "
+                        "was taken from the source exactly as written and has not been "
+                        "altered — find the right one and correct it by hand."
+                    ),
+                    severity=Severity.WARNING,
+                    before_html=str(anchor_tag)[:300],
+                    applied=False,
+                    metadata={"video_id": video_id},
+                )
+            )
+
+        # Malformed source can nest one <code> inside another.
+        for code in soup.find_all("code"):
+            if code.find("code") is not None:
+                findings.append(
+                    Finding(
+                        rule_id="NESTED-CODE-001",
+                        title="Code element nested inside another",
+                        message=(
+                            "A <code> element contains another <code>. This came from the "
+                            "source and is almost certainly a stray tag there; it will not "
+                            "render as intended. Fix it in the source or by hand."
+                        ),
+                        severity=Severity.WARNING,
+                        before_html=str(code)[:300],
+                        applied=False,
                     )
                 )
 

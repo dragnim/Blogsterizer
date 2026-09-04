@@ -188,6 +188,30 @@ def extract_body_html(source_html: str) -> str:
 CAPTION_OPEN = re.compile(r"\[caption\b[^\]]*\]")
 CAPTION_CLOSE = re.compile(r"\[/caption\]")
 
+# [embedyt] https://www.youtube.com/watch?v=... [/embedyt] wraps a video embed.
+# Gutenberg does not interpret it, so the brackets would show as literal text.
+# The URL inside is real content and is kept as a link for you to turn into an
+# embed block by hand.
+EMBEDYT = re.compile(r"\[embedyt\]\s*(\S+?)\s*\[/embedyt\]")
+
+
+def strip_embed_shortcodes(source_html: str) -> tuple[str, int]:
+    """Turn [embedyt]URL[/embedyt] into a plain link to the same URL.
+
+    The video is content, so the URL survives; only the shortcode wrapper goes.
+    Making it an anchor rather than bare text means the link policy then applies
+    to it like any other external link.
+    """
+    count = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal count
+        count += 1
+        url = match.group(1)
+        return f'<a href="{url}">{url}</a>'
+
+    return EMBEDYT.sub(replace, source_html), count
+
 
 def strip_caption_shortcodes(source_html: str) -> tuple[str, int]:
     """Remove classic [caption ...] wrappers, keeping the caption wording.
@@ -206,8 +230,46 @@ def strip_caption_shortcodes(source_html: str) -> tuple[str, int]:
 def analyse_html(source_html: str, profile: dict[str, Any]) -> AnalysisResult:
     source_html = extract_body_html(source_html)
     source_html, captions_removed = strip_caption_shortcodes(source_html)
+    source_html, embeds_removed = strip_embed_shortcodes(source_html)
+    # Old exports carry class=" language-apl" with a leading space. The parser
+    # normalises it, so the class ends up correct, but nothing said so: one
+    # corpus post had 58 such elements and produced almost no findings.
+    untidy_classes = len(re.findall(r'class="\s+language-\w+"', source_html))
     soup = BeautifulSoup(source_html, "html.parser")
     findings: list[Finding] = []
+
+    if untidy_classes:
+        findings.append(
+            Finding(
+                rule_id="APL-CLASS-WHITESPACE-001",
+                title="Untidy language class normalised",
+                message=(
+                    f'{untidy_classes} element(s) had a language class with a leading '
+                    'space, such as class=" language-apl". The class itself is correct '
+                    "and was tidied; nothing else about the markup changed."
+                ),
+                severity=Severity.SAFE,
+                applied=True,
+                metadata={"count": untidy_classes},
+            )
+        )
+
+    if embeds_removed:
+        findings.append(
+            Finding(
+                rule_id="EMBED-SHORTCODE-001",
+                title="Video embed shortcode converted",
+                message=(
+                    f"Converted {embeds_removed} [embedyt] shortcode(s) to a plain link. "
+                    "Gutenberg does not interpret the shortcode, so it would have shown "
+                    "as literal text. Replace the link with an Embed block if you want the "
+                    "video to play in the post."
+                ),
+                severity=Severity.SAFE,
+                applied=True,
+                metadata={"count": embeds_removed},
+            )
+        )
 
     if captions_removed:
         findings.append(

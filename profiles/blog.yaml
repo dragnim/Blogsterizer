@@ -89,6 +89,11 @@ cleanup:
   known_class_prefixes:
     - language-
   report_unknown_classes: true
+  # Legacy presentational attributes on tables; sizing belongs to the stylesheet.
+  remove_table_attributes:
+    - width
+    - height
+  remove_empty_paragraphs: true
   # Syntax-highlighter output (Prism, highlight.js). These spans are generated at
   # render time, so they are cruft here; unwrapping keeps the text.
   highlighter_classes:

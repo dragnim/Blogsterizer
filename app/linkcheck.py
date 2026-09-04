@@ -164,6 +164,58 @@ async def check_links(html: str) -> list[LinkResult]:
     return list(results)
 
 
+def migration_targets(html: str, moves: list[dict[str, str]]) -> dict[str, str]:
+    """Map each old-host link to where it would point after migration.
+
+    Used to answer the question that matters before repointing anything: does
+    the file actually exist on the new site yet? A missing one is something to
+    upload, not a reason to leave the link on the old host.
+    """
+    targets: dict[str, str] = {}
+    for href in collect_links(html):
+        parsed = urlparse(href)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            continue
+        for move in moves:
+            if parsed.netloc.lower() != str(move["from"]).lower():
+                continue
+            targets[href] = parsed._replace(netloc=str(move["to"])).geturl()
+            break
+    return targets
+
+
+async def check_migration_targets(
+    html: str, moves: list[dict[str, str]]
+) -> list[LinkResult]:
+    """Check the *proposed* new URLs, not the current ones."""
+    targets = migration_targets(html, moves)
+    if not targets:
+        return []
+
+    semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+    headers = {"User-Agent": f"The Blogsterizer/{__version__} (+link check)"}
+
+    async with httpx.AsyncClient(
+        timeout=TIMEOUT, follow_redirects=True, headers=headers
+    ) as client:
+        results = await asyncio.gather(
+            *(_check_one(client, target, semaphore) for target in targets.values())
+        )
+
+    by_target = {result.url: result for result in results}
+    ordered: list[LinkResult] = []
+    for original, target in sorted(targets.items()):
+        result = by_target[target]
+        # Say which old link this is about, since that is what the user will
+        # be looking for in the post.
+        result.texts = [original]
+        ordered.append(result)
+
+    order = {"broken": 0, "inconclusive": 1, "skipped": 2, "ok": 3}
+    ordered.sort(key=lambda item: (order.get(item.outcome, 9), item.url))
+    return ordered
+
+
 def summarise(results: list[LinkResult]) -> dict[str, int]:
     counts = {"ok": 0, "broken": 0, "inconclusive": 0, "skipped": 0}
     for result in results:

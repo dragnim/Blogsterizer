@@ -138,6 +138,56 @@ class CleanupRule(Rule):
                     )
                 )
 
+        # Legacy presentational attributes on table cells. Seen as
+        # <td width="200px"> in the corpus: layout markup that the site's own
+        # CSS should decide, in the same family as align= (handoff 4.1).
+        for attribute in self.config.get("remove_table_attributes", ["width", "height"]):
+            for cell in soup.find_all(["td", "th", "table"]):
+                if not cell.has_attr(attribute):
+                    continue
+                before = str(cell)[:200]
+                del cell[attribute]
+                findings.append(
+                    Finding(
+                        rule_id="TABLE-ATTR-001",
+                        title="Legacy table attribute removed",
+                        message=(
+                            f'Removed {attribute}="..." from a <{cell.name}>. Table sizing '
+                            "belongs to the site's stylesheet."
+                        ),
+                        severity=Severity.SAFE,
+                        before_html=before,
+                        after_html=str(cell)[:200],
+                        applied=True,
+                    )
+                )
+
+        # An empty paragraph, usually a lone &nbsp; left by the classic editor,
+        # renders as a stray gap and becomes an empty Gutenberg block.
+        if bool(self.config.get("remove_empty_paragraphs", True)):
+            for paragraph in soup.find_all("p"):
+                if paragraph.find(["img", "br", "hr", "iframe", "input"]):
+                    continue
+                text = paragraph.get_text().replace("\xa0", " ").strip()
+                if text:
+                    continue
+                before = str(paragraph)
+                paragraph.decompose()
+                findings.append(
+                    Finding(
+                        rule_id="EMPTY-PARAGRAPH-001",
+                        title="Empty paragraph removed",
+                        message=(
+                            "Removed a paragraph containing nothing but whitespace. The "
+                            "classic editor left these behind; in Gutenberg it becomes an "
+                            "empty block."
+                        ),
+                        severity=Severity.SAFE,
+                        before_html=before,
+                        applied=True,
+                    )
+                )
+
         # Handoff 4.3: an unknown class might carry intentional styling or
         # semantics, so it survives and is reported once for human review.
         if class_mode != "allowlist" and bool(self.config.get("report_unknown_classes", True)):

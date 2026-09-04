@@ -390,6 +390,20 @@ Every draft is checked against the post before you see it. A keyphrase the post 
 120-155 characters Yoast wants, or an SEO title over 60. **Drafts are unreviewed:** read them against
 the post.
 
+## Old-site links
+
+`URL-HOST-ALL-001` offers a single **Repoint all** action for every link on a host, with the target
+host in an editable box. Only the host changes: path, query and fragment are preserved exactly,
+because handoff 6.3 forbids altering a URL beyond a configured migration.
+
+Before pressing it, use the Links tab's **Check where old-site links would point**. That requests the
+*new* URLs rather than the current ones, so anything reported broken is a file that has not been
+uploaded to the dev site yet. Repointing a link to a URL that does not exist turns a working link into
+a dead one.
+
+The mapping lives in `url_rewrites.host_suggestions` in `profiles/blog.yaml`. When the site goes live,
+reverse it there — no code change.
+
 ## Checking links
 
 The **Links** tab asks each link in the document whether it still resolves. This is the one part of the
@@ -401,6 +415,16 @@ Results are one of **broken** (a 404, a timeout, a failed request), **inconclusi
 believing it), **not checked** (relative, in-page, `mailto:`, or an address on a private network), or
 **ok**. Requests go out four at a time with a ten-second timeout, `HEAD` first and `GET` only if that
 is refused, and a redirect to a private address is abandoned rather than followed.
+
+## Checking a change against real content
+
+`tests/test_corpus.py` runs every file in `tests/fixtures/` end to end and asserts what must hold for
+any post: no errors, no words lost, idempotent, no legacy cruft or old-site image URL surviving,
+balanced block delimiters, block markup word-identical to the cleaned HTML.
+
+The folder is almost empty on purpose. Blog HTML is Dyalog content, not part of the app, so it is
+gitignored: copy some posts in, run the tests, and nothing gets committed. With an empty folder the
+tests skip rather than fail.
 
 ## Versioning
 

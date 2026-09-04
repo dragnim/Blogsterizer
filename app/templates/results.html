@@ -300,8 +300,20 @@
         <form action="/check-links" method="post" class="toolbar">
             <input type="hidden" name="source" value="{{ source }}">
             <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
-            <button type="submit">{% if link_results %}Check again{% else %}Check all links{% endif %}</button>
+            <input type="hidden" name="mode" value="current">
+            <button type="submit">Check the links as they are</button>
         </form>
+        <form action="/check-links" method="post" class="toolbar">
+            <input type="hidden" name="source" value="{{ source }}">
+            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+            <input type="hidden" name="mode" value="targets">
+            <button type="submit">Check where old-site links would point</button>
+        </form>
+        {% if link_mode == 'targets' %}
+        <p class="field-help"><strong>Checking the new site, not the old one.</strong> Anything
+        <em>broken</em> here is a file that has not been uploaded to the dev site yet. Repointing a
+        link to a URL that does not exist would turn a working link into a dead one.</p>
+        {% endif %}
         <p class="field-help">This one makes real requests to the linked sites, so it is not part of
         the analysis and does not run on its own. A site that refuses automated requests will answer
         with a 403 or similar; that is reported as inconclusive, not broken.</p>
@@ -321,6 +333,7 @@
                 <td>
                     <code>{{ item.url }}</code>
                     {% if item.occurrences > 1 %}<span class="link-count">×{{ item.occurrences }}</span>{% endif %}
+                    {% if link_mode == 'targets' and item.texts %}<br><span class="link-redirect">from <code>{{ item.texts[0] }}</code></span>{% endif %}
                     {% if item.redirected %}<br><span class="link-redirect">redirects to <code>{{ item.final_url }}</code></span>{% endif %}
                 </td>
                 <td><span class="link-outcome {{ item.outcome }}">{{ item.outcome }}</span> {{ item.detail }}</td>

@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from urllib.parse import urlparse
+
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 
@@ -165,6 +167,59 @@ def set_code_language(soup: BeautifulSoup, params: dict) -> str:
     classes.append(value)
     element["class"] = classes
     return f'Set class="{value}" on one code element.'
+
+
+def convert_to_blockquote(soup: BeautifulSoup, params: dict) -> str:
+    """Turn an indented <div> into a real <blockquote>.
+
+    Old posts used <div style="margin: 15px 50px"> to indent a quotation. That
+    has no Gutenberg block, so it lands in Custom HTML; a blockquote is what it
+    means and maps to core/quote.
+    """
+    index = int(params.get("index", 0))
+    element = _nth(soup, "div", index)
+    element.name = "blockquote"
+    if element.has_attr("style"):
+        del element["style"]
+    text = element.get_text(" ", strip=True)[:60]
+    return f'Changed a <div> to <blockquote>: "{text}".'
+
+
+def rewrite_host(soup: BeautifulSoup, params: dict) -> str:
+    """Repoint every link on one host at another host.
+
+    Only the host changes: the path, query and fragment are preserved exactly,
+    because handoff 6.3 forbids inventing or altering a URL beyond a configured
+    migration. This does not check that anything exists at the new host — the
+    Links tab does that.
+    """
+    from_host = str(params.get("from_host", "")).strip().lower()
+    to_host = str(params.get("value", "")).strip()
+
+    if not from_host:
+        raise ActionError("No host was supplied.")
+    if not to_host:
+        raise ActionError("Enter a host, such as dyalogprod.gos.dyalog.com.")
+    to_host = re.sub(r"^https?://", "", to_host).strip("/")
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d+)?", to_host, re.IGNORECASE):
+        raise ActionError(f"{to_host!r} does not look like a host name.")
+    if to_host.lower() == from_host:
+        raise ActionError("That is the host they already use.")
+
+    changed = 0
+    for anchor in soup.find_all("a", href=True):
+        parsed = urlparse(str(anchor["href"]))
+        if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() != from_host:
+            continue
+        anchor["href"] = parsed._replace(netloc=to_host).geturl()
+        changed += 1
+
+    if not changed:
+        raise ActionError(f"No links on {from_host} are left. Re-run the analysis.")
+    return (
+        f"Repointed {changed} link{'s' if changed != 1 else ''} from {from_host} "
+        f"to {to_host}. Paths were preserved exactly."
+    )
 
 
 def rewrite_url(soup: BeautifulSoup, params: dict) -> str:
@@ -341,6 +396,8 @@ ACTIONS: dict[str, Action] = {
         Action("split_paragraph", "Split this paragraph", split_paragraph),
         Action("set_id", "Change this id", set_id),
         Action("rewrite_url", "Repoint this link", rewrite_url),
+        Action("rewrite_host", "Repoint every link on this host", rewrite_host),
+        Action("convert_to_blockquote", "Make this a blockquote", convert_to_blockquote),
         Action("set_code_language", "Set the code language", set_code_language),
         Action("split_paragraph_lines", "Split at the line breaks", split_paragraph_lines),
     )
