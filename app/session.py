@@ -27,6 +27,7 @@ from app.actions import (
     preview_blocks,
 )
 from app.engine import analyse_html
+from app.images import ImageReport
 from app.models import AnalysisResult, Finding, Severity
 
 
@@ -49,6 +50,9 @@ class Session:
     current: AnalysisResult
     fixes: list[AppliedFix] = field(default_factory=list)
     error: str | None = None
+    images: ImageReport | None = None
+    image_slug: str = ""
+    sidecar: str = ""
 
     @property
     def cleaned_html(self) -> str:

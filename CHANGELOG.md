@@ -15,6 +15,32 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.15.0
+
+Image preparation. Point the app at a folder of a post's images and it pairs each
+`<img>` with a file, processes the files, and replaces each tag with a visible
+placeholder to be filled in by hand.
+
+* Resized to 1200px wide, never enlarged, converted to WebP, renamed
+  `blog_<post-slug>_NN.webp` in document order.
+* Compression is chosen per image: near-lossless for screenshots, quality-82 for
+  photographs. Lossy WebP rings around monospaced glyphs, and most images in
+  these posts are APL session output. The choice is reported per image.
+* EXIF is stripped, so camera and location data from a photograph does not reach
+  a public site.
+* Matching is by filename, so an absolute `src` on the old site still finds a
+  local file. An `<img>` with no matching file is reported, never guessed at, and
+  so is a file in the folder that no `<img>` references.
+* Alt text and titles go to a text file beside the images. Existing alt text is
+  carried through and marked `KEPT`; a model draft is marked `UNREVIEWED`; with
+  no API key the entry is `TODO` and blank. A filename is never turned into a
+  description — "screenshot-3.png" says nothing about what the screenshot shows,
+  and a plausible guess is worse than an obvious gap because it survives review.
+* AI drafting is opt-in and needs your own `ANTHROPIC_API_KEY`. It has only been
+  tested against a stubbed API.
+* Originals are read only; an existing output file is never replaced unless asked.
+* New dependency: Pillow.
+
 ## 0.14.1
 
 * Syntax-highlighter spans (`<span class="token …">` from Prism, `hljs-*` from

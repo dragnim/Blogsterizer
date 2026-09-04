@@ -307,6 +307,34 @@ That final step is deliberate: a transformation is not considered part of the Bl
 - Free-form editorial/typo checking is not implemented yet; the current reports are deterministic HTML/content-structure checks.
 - Arbitrary ASCII-only code in unmarked plain prose cannot be inferred safely; use backticks in plain-text input or `<code>` in HTML input.
 
+## Preparing images
+
+The **Images** tab takes a folder containing the post's images and the post URL. For each
+`<img>` in the HTML it finds the matching file by name, writes a processed version, and replaces the
+tag with a placeholder:
+
+```html
+<p class="image-placeholder"><strong>Image here: blog_hashing-it-out_01.webp</strong></p>
+```
+
+Images are not put back into the markup — that is yours to do, and the placeholder is deliberately
+conspicuous so it cannot be missed. An image inside a sentence gets an inline placeholder instead, so
+the paragraph stays valid.
+
+Processing: resized to 1200px wide (an image already narrower is left alone, since enlarging cannot
+add detail), EXIF stripped, converted to WebP. Compression is chosen per image — near-lossless for
+screenshots, quality 82 for photographs — because lossy WebP visibly damages monospaced text and most
+of these images are APL session output. Each decision is reported so you can see when it guesses wrong.
+
+Alt text and titles are written to `<slug>-images.txt` beside the processed files, with a status per
+image: `KEPT` (the original page's alt text, written by a person), `UNREVIEWED` (drafted by a model),
+`TODO` (no description — write one). Drafting is opt-in and needs `ANTHROPIC_API_KEY` in the
+environment; without it you get `TODO` entries rather than invented text. **Nothing in that file has
+been checked**, which the file says at the top.
+
+Anything unmatched is reported rather than guessed: an `<img>` with no file in the folder, and a file
+in the folder no `<img>` uses.
+
 ## Checking links
 
 The **Links** tab asks each link in the document whether it still resolves. This is the one part of the

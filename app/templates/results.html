@@ -88,6 +88,7 @@
         <button class="tab" type="button" data-tab="changes" role="tab" aria-selected="false">Changes</button>
         <button class="tab" type="button" data-tab="diff" role="tab" aria-selected="false">Diff</button>
         <button class="tab" type="button" data-tab="links" role="tab" aria-selected="false">Links</button>
+        <button class="tab" type="button" data-tab="images" role="tab" aria-selected="false">Images</button>
     </div>
 
     <div class="tab-panel active" data-panel="clean" role="tabpanel">
@@ -201,6 +202,65 @@
         <p class="empty-filter-message" id="empty-filter-message" hidden>No findings match this filter.</p>
         {% else %}
         <p>No changes or issues were found.</p>
+        {% endif %}
+    </div>
+
+    <div class="tab-panel" data-panel="images" role="tabpanel" {% if not result.images %}hidden{% endif %}>
+        <form action="/images" method="post" class="image-form">
+            <input type="hidden" name="source" value="{{ source }}">
+            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+            <label class="field">
+                <span>Folder containing the post's images</span>
+                <input type="text" name="folder" value="{{ image_folder or '' }}" spellcheck="false"
+                       placeholder="C:\Users\you\Documents\post-images" required>
+            </label>
+            <label class="field">
+                <span>Post URL or title (used for the filenames)</span>
+                <input type="text" name="post_url" value="{{ post_url or '' }}" spellcheck="false"
+                       placeholder="https://www.dyalog.com/blog/2026/01/hashing-it-out/">
+            </label>
+            <label class="field">
+                <span>Output folder (optional)</span>
+                <input type="text" name="output_folder" spellcheck="false"
+                       placeholder="defaults to a 'processed' subfolder">
+            </label>
+            <label class="checkbox"><input type="checkbox" name="overwrite" value="1"> Replace files that already exist</label>
+            <label class="checkbox"><input type="checkbox" name="draft_text" value="1"> Draft alt text with AI (needs ANTHROPIC_API_KEY; drafts are marked unreviewed)</label>
+            <button type="submit">Process images</button>
+        </form>
+        <p class="field-help">Images are resized to 1200px wide (never enlarged), converted to WebP,
+        and renamed. Each <code>&lt;img&gt;</code> is replaced with a placeholder for you to fill in
+        by hand. Alt text and titles are written to a text file beside the images; nothing in that
+        file has been checked.</p>
+
+        {% if result.images %}
+        <table class="link-table">
+            <thead><tr><th>Output</th><th>From</th><th>Details</th></tr></thead>
+            <tbody>
+            {% for plan in result.images.plans %}
+            <tr class="{{ 'ok' if plan.matched else 'broken' }}">
+                <td><code>{{ plan.output_name }}</code></td>
+                <td><code>{{ plan.src_attribute }}</code></td>
+                <td>
+                    {% if plan.matched %}
+                    {{ plan.width }}&times;{{ plan.height }}px, {{ plan.kind }}, {{ plan.encoding }}
+                    {% if plan.existing_alt %}<br><span class="link-redirect">alt kept: {{ plan.existing_alt }}</span>{% endif %}
+                    {% else %}
+                    <span class="link-outcome broken">not processed</span> {{ plan.note }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if result.images.unreferenced %}
+        <p class="field-help"><strong>In the folder but not used by any &lt;img&gt;:</strong>
+        {{ result.images.unreferenced|join(', ') }}</p>
+        {% endif %}
+        {% if result.sidecar %}
+        <h4>{{ result.image_slug }}-images.txt</h4>
+        <pre><code>{{ result.sidecar }}</code></pre>
+        {% endif %}
         {% endif %}
     </div>
 

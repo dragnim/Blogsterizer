@@ -9,6 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from app.images import (
+    plan_images,
+    process_images,
+    replace_with_placeholders,
+    slugify,
+)
+from app.imagetext import Draft, draft_all, sidecar_text
 from app.linkcheck import check_links, summarise
 from app.session import build_session
 from app.version import __version__
@@ -190,6 +197,90 @@ async def undo_fix(
             "history": entries,
             "notice": "Undid the last change." if undone else None,
             "action_error": session.error,
+        },
+    )
+
+
+@app.post("/images", response_class=HTMLResponse)
+async def prepare_images(
+    request: Request,
+    source: str = Form(...),
+    history: str = Form("[]"),
+    folder: str = Form(...),
+    post_url: str = Form(""),
+    output_folder: str = Form(""),
+    overwrite: str = Form(""),
+    draft_text: str = Form(""),
+):
+    """Process a folder of images and swap each <img> for a placeholder.
+
+    Writes files, so the paths are exactly what the user typed: nothing is
+    inferred, and the output folder defaults to a subfolder of the input one.
+    """
+    try:
+        entries = json.loads(history or "[]")
+    except json.JSONDecodeError:
+        entries = []
+
+    profile = load_profile(DEFAULT_PROFILE_ID)
+    slug = slugify(post_url or "post")
+    notice: str | None = None
+    error: str | None = None
+    report = None
+    sidecar = ""
+    updated_source = source
+
+    try:
+        input_path = Path(folder).expanduser()
+        output_path = (
+            Path(output_folder).expanduser() if output_folder else input_path / "processed"
+        )
+        report = plan_images(source, input_path, slug)
+        report = process_images(report, output_path, overwrite=bool(overwrite))
+
+        if draft_text:
+            drafts = draft_all(report)
+        else:
+            drafts = {
+                plan.index: Draft(
+                    alt=plan.existing_alt,
+                    title=plan.existing_alt[:60],
+                    status="KEPT" if plan.existing_alt else "TODO",
+                    detail=(
+                        "Alt text from the original page, unchanged."
+                        if plan.existing_alt
+                        else "Drafting was not requested. Write a description here."
+                    ),
+                )
+                for plan in report.matched
+            }
+        sidecar = sidecar_text(report, drafts, slug)
+        (output_path / f"{slug}-images.txt").write_text(sidecar, encoding="utf-8")
+
+        updated_source, placeholders = replace_with_placeholders(source, report)
+        notice = (
+            f"Processed {len(report.written)} image(s) into {output_path} and "
+            f"replaced {len(placeholders)} tag(s) with placeholders."
+        )
+    except (OSError, NotADirectoryError, ValueError) as exc:
+        error = f"{type(exc).__name__}: {exc}"
+
+    session = build_session(updated_source, profile, entries)
+    session.images = report
+    session.image_slug = slug
+    session.sidecar = sidecar
+
+    return templates.TemplateResponse(
+        request=request,
+        name="results.html",
+        context={
+            "result": session,
+            "source": updated_source,
+            "history": entries,
+            "notice": notice,
+            "action_error": error or session.error,
+            "image_folder": folder,
+            "post_url": post_url,
         },
     )
 
