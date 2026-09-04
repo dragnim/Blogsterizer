@@ -17,12 +17,22 @@ from app.images import (
 )
 from app.imagetext import Draft, draft_all, sidecar_text
 from app.linkcheck import check_links, summarise
+from app.postseo import draft_post_seo
 from app.session import build_session
 from app.version import __version__
 from app.engine import analyse_html, plain_text_to_html
 from app.fetcher import FetchError, fetch_html
 from app.profiles import DEFAULT_PROFILE_ID, ProfileError, load_profile
 
+
+# An API key can live in a .env file beside pyproject.toml rather than having to
+# be set in the environment before every run. .env is gitignored.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:  # pragma: no cover - python-dotenv ships with uvicorn[standard]
+    pass
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -281,6 +291,37 @@ async def prepare_images(
             "action_error": error or session.error,
             "image_folder": folder,
             "post_url": post_url,
+        },
+    )
+
+
+@app.post("/seo-draft", response_class=HTMLResponse)
+async def draft_seo_fields(
+    request: Request,
+    source: str = Form(...),
+    history: str = Form("[]"),
+):
+    """Draft the Yoast focus keyphrase and meta description for this post.
+
+    Needs an API key, calls the network, and writes nothing into the HTML: a
+    keyphrase and a meta description are fields you paste into Yoast.
+    """
+    try:
+        entries = json.loads(history or "[]")
+    except json.JSONDecodeError:
+        entries = []
+
+    session = build_session(source, load_profile(DEFAULT_PROFILE_ID), entries)
+    draft = draft_post_seo(session.cleaned_html)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="results.html",
+        context={
+            "result": session,
+            "source": source,
+            "history": entries,
+            "post_seo": draft,
         },
     )
 

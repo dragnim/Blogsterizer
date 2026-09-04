@@ -354,6 +354,30 @@ been checked**, which the file says at the top.
 Anything unmatched is reported rather than guessed: an `<img>` with no file in the folder, and a file
 in the folder no `<img>` uses.
 
+## The API key
+
+Everything in the app works without a key. It is needed only for the optional AI drafting: image alt
+text and titles, and the Yoast fields.
+
+Copy `.env.example` to `.env` beside `pyproject.toml`, put the key in it, and restart:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+`.env` is gitignored, so the key will not be committed. Setting `ANTHROPIC_API_KEY` in the
+environment works too and takes precedence.
+
+## Yoast fields
+
+The **Yoast** tab drafts a focus keyphrase, a meta description and an SEO title from the post's own
+words. Nothing is written into the HTML; these are fields you paste into Yoast.
+
+Every draft is checked against the post before you see it. A keyphrase the post never uses is flagged
+— Yoast would score it green while the page ranks for nothing — as is a meta description outside the
+120-155 characters Yoast wants, or an SEO title over 60. **Drafts are unreviewed:** read them against
+the post.
+
 ## Checking links
 
 The **Links** tab asks each link in the document whether it still resolves. This is the one part of the

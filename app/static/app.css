@@ -932,3 +932,28 @@ mark.added {
 .link-table code { word-break: break-all; font-size: 0.82rem; }
 
 .link-count, .link-redirect { font-size: 0.78rem; color: var(--muted); }
+
+
+/* Drafted Yoast fields. */
+.seo-draft {
+    margin: 0.6rem 0 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.seo-draft dt {
+    font-weight: 600;
+    margin-top: 0.8rem;
+}
+
+.seo-draft dt:first-child { margin-top: 0; }
+
+.seo-draft dd { margin: 0.2rem 0 0; }
+
+.seo-count {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--muted);
+}

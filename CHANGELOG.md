@@ -15,6 +15,19 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.17.0
+
+* An API key can live in a `.env` file beside `pyproject.toml` rather than having
+  to be set in the environment before every run. `.env` is gitignored, and
+  `.env.example` shows the format.
+* A **Yoast** tab drafts a focus keyphrase, a meta description and an SEO title
+  from the post's own words. Nothing is written into the HTML — these are fields
+  to paste into Yoast — and every draft is marked unreviewed.
+* Drafts are checked against the post rather than trusted: a keyphrase the post
+  never uses is flagged, because Yoast will score it green while the page ranks
+  for nothing. A meta description outside 120-155 characters and an SEO title
+  over 60 are flagged too.
+
 ## 0.16.0
 
 Found by pasting a real post's output into WordPress.

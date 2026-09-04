@@ -88,6 +88,7 @@
         <button class="tab" type="button" data-tab="changes" role="tab" aria-selected="false">Changes</button>
         <button class="tab" type="button" data-tab="diff" role="tab" aria-selected="false">Diff</button>
         <button class="tab" type="button" data-tab="links" role="tab" aria-selected="false">Links</button>
+        <button class="tab" type="button" data-tab="seo" role="tab" aria-selected="false">Yoast</button>
         <button class="tab" type="button" data-tab="images" role="tab" aria-selected="false">Images</button>
     </div>
 
@@ -202,6 +203,37 @@
         <p class="empty-filter-message" id="empty-filter-message" hidden>No findings match this filter.</p>
         {% else %}
         <p>No changes or issues were found.</p>
+        {% endif %}
+    </div>
+
+    <div class="tab-panel" data-panel="seo" role="tabpanel" {% if not post_seo %}hidden{% endif %}>
+        <form action="/seo-draft" method="post" class="toolbar">
+            <input type="hidden" name="source" value="{{ source }}">
+            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+            <button type="submit">{% if post_seo %}Draft again{% else %}Draft Yoast fields{% endif %}</button>
+        </form>
+        <p class="field-help">Drafts a focus keyphrase, a meta description and an SEO title from the
+        post's own words. Needs an API key. Nothing is written into the HTML — these are fields you
+        paste into Yoast. <strong>Every draft is unreviewed:</strong> read it against the post.</p>
+
+        {% if post_seo %}
+        {% if post_seo.status == 'UNREVIEWED' %}
+        <dl class="seo-draft">
+            <dt>Focus keyphrase</dt>
+            <dd><code>{{ post_seo.keyphrase }}</code></dd>
+            <dt>Meta description <span class="seo-count">{{ post_seo.meta|length }} characters</span></dt>
+            <dd>{{ post_seo.meta }}</dd>
+            {% if post_seo.title %}
+            <dt>SEO title <span class="seo-count">{{ post_seo.title|length }} characters</span></dt>
+            <dd>{{ post_seo.title }}</dd>
+            {% endif %}
+        </dl>
+        {% for warning in post_seo.warnings %}
+        <p class="notice error">{{ warning }}</p>
+        {% endfor %}
+        {% else %}
+        <p class="notice error"><strong>{{ post_seo.status }}:</strong> {{ post_seo.detail }}</p>
+        {% endif %}
         {% endif %}
     </div>
 
