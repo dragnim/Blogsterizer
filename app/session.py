@@ -160,6 +160,71 @@ def _attach_previews(findings: list[Finding]) -> None:
             finding.action_preview_blocks = preview_blocks(preview)
 
 
+def image_findings(report: ImageReport) -> list[Finding]:
+    """Turn an image-processing report into findings.
+
+    The report has its own table in the Images tab, but the Changes tab is where
+    the work gets done, so anything needing a decision has to appear there too.
+    """
+    findings: list[Finding] = []
+
+    for plan in report.plans:
+        if not plan.matched:
+            findings.append(
+                Finding(
+                    rule_id="IMAGE-NOT-FOUND-001",
+                    title="No file for this image",
+                    message=(
+                        f"{plan.src_attribute} has no matching file in the folder, so "
+                        "nothing was processed for it. Nothing was guessed. "
+                        f"{plan.note}"
+                    ),
+                    severity=Severity.WARNING,
+                    before_html=plan.src_attribute,
+                    applied=False,
+                    metadata={"src": plan.src_attribute},
+                )
+            )
+        elif plan.undersize:
+            findings.append(
+                Finding(
+                    rule_id="IMAGE-TOO-SMALL-001",
+                    title="Image is much smaller than the target",
+                    message=(
+                        f"{plan.source.name if plan.source else plan.output_name} is "
+                        f"{plan.width}×{plan.height}px. {plan.note}"
+                    ),
+                    severity=Severity.WARNING,
+                    before_html=f"{plan.output_name} ← {plan.src_attribute}",
+                    applied=False,
+                    metadata={
+                        "file": plan.output_name,
+                        "width": plan.width,
+                        "height": plan.height,
+                    },
+                )
+            )
+
+    for name in report.unreferenced:
+        findings.append(
+            Finding(
+                rule_id="IMAGE-UNUSED-001",
+                title="File in the folder that the post does not use",
+                message=(
+                    f"{name} is in the folder but no <img> in the post refers to it. "
+                    "It was not processed. If the post should show it, add the image; "
+                    "if not, it does not belong in this folder."
+                ),
+                severity=Severity.SUGGESTED,
+                before_html=name,
+                applied=False,
+                metadata={"file": name},
+            )
+        )
+
+    return findings
+
+
 def build_session(
     source: str,
     profile: dict[str, Any],

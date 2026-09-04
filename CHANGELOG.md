@@ -15,6 +15,18 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.5
+
+* The image placeholder no longer carries `class="image-placeholder"`. The app
+  was generating a class of its own invention — cruft on the new site, which
+  handoff 4.2 forbids — and then reporting it back as an unrecognised class. The
+  bold text is conspicuous enough on its own.
+* Image problems now appear in the **Changes** tab, not only in the Images
+  table. `IMAGE-TOO-SMALL-001` and `IMAGE-NOT-FOUND-001` are Warnings;
+  `IMAGE-UNUSED-001`, for a file in the folder no `<img>` refers to, is a
+  Suggestion. The table was the only place they showed, and the Changes tab is
+  where the work happens.
+
 ## 0.19.4
 
 Three problems reported while processing a real post's images.

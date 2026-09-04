@@ -86,7 +86,11 @@ def test_an_inline_image_gets_an_inline_placeholder():
     result = clean('<p>See <img src="shot.png"> for the output.</p>')
     soup = BeautifulSoup(result.cleaned_html, "html.parser")
     assert soup.p.find("p") is None
-    assert soup.p.find("strong")["class"] == ["image-placeholder"]
+    # No class of the app's own invention: handoff 4.2, and it was being
+    # reported back as an unrecognised class.
+    strong = soup.p.find("strong")
+    assert strong is not None
+    assert not strong.get("class")
     assert "See" in soup.p.get_text()
     assert "for the output." in soup.p.get_text()
 

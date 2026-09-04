@@ -17,7 +17,7 @@ from app.images import (
 from app.imagetext import Draft, draft_all, sidecar_text
 from app.linkcheck import check_links, check_migration_targets, summarise
 from app.postseo import draft_post_seo
-from app.session import build_session
+from app.session import build_session, image_findings
 from app.version import __version__
 from app.engine import analyse_html, plain_text_to_html
 from app.fetcher import FetchError, fetch_html
@@ -302,6 +302,10 @@ async def prepare_images(
 
     session = build_session(source, profile, entries)
     session.images = report
+    # Surface anything needing a decision in the Changes tab, not only in the
+    # Images table.
+    if report is not None:
+        session.current.findings.extend(image_findings(report))
     session.image_slug = slug
     session.sidecar = sidecar
 

@@ -89,13 +89,15 @@ class ImagePlaceholderRule(Rule):
                 and bool(tag.parent is not None and tag.parent.get_text(strip=True))
             )
 
+            # No class: the bold text is conspicuous enough, and a class of the
+            # app's own invention would mean nothing on the new site — handoff
+            # 4.2 forbids generating cruft. It was also being reported back as
+            # an unrecognised class, which was absurd.
             if inline:
                 marker = soup.new_tag("strong")
-                marker["class"] = ["image-placeholder"]
                 marker.string = f"[{text}]"
             else:
                 marker = soup.new_tag("p")
-                marker["class"] = ["image-placeholder"]
                 strong = soup.new_tag("strong")
                 strong.string = text
                 marker.append(strong)

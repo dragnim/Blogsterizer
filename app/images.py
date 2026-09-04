@@ -309,11 +309,9 @@ def replace_with_placeholders(html: str, report: ImageReport) -> tuple[str, list
 
         if inline:
             marker = soup.new_tag("strong")
-            marker["class"] = ["image-placeholder"]
             marker.string = f"[{plan.placeholder}]"
         else:
             marker = soup.new_tag("p")
-            marker["class"] = ["image-placeholder"]
             strong = soup.new_tag("strong")
             strong.string = plan.placeholder
             marker.append(strong)

@@ -243,9 +243,7 @@ def test_an_image_alone_in_a_paragraph_becomes_a_block_placeholder(folder):
     html = '<p><img src="screenshot.png"></p>'
     report = plan_images(html, folder, "p")
     updated, placeholders = replace_with_placeholders(html, report)
-    assert updated == (
-        '<p class="image-placeholder"><strong>Image here: blog_p_01.webp</strong></p>'
-    )
+    assert updated == "<p><strong>Image here: blog_p_01.webp</strong></p>"
     assert placeholders == ["Image here: blog_p_01.webp"]
 
 
@@ -262,7 +260,9 @@ def test_an_inline_image_gets_an_inline_placeholder(folder):
     soup = BeautifulSoup(updated, "html.parser")
     assert soup.p is not None
     assert soup.p.find("p") is None
-    assert soup.p.find("strong")["class"] == ["image-placeholder"]
+    strong = soup.p.find("strong")
+    assert strong is not None
+    assert not strong.get("class")
 
 
 def test_a_figure_with_a_caption_keeps_its_caption(folder):
@@ -593,3 +593,106 @@ def test_the_sidecar_records_the_undersize_warning(folder, tmp_path):
     text = sidecar_text(report, draft_all(report), "a-post")
     assert "WARNING" in text
     assert "250px wide" in text
+
+
+# --------------------------------------------------------------------------
+# The app must not report its own output back at you.
+# --------------------------------------------------------------------------
+
+def test_processing_images_adds_no_unrecognised_class():
+    """Reported: after processing, a suggestion appeared about the app's own class."""
+    from app.engine import analyse_html
+    from app.profiles import DEFAULT_PROFILE_ID, load_profile
+
+    result = analyse_html(
+        '<p><img src="a.png"></p><p>See <img src="b.png"> here.</p>',
+        load_profile(DEFAULT_PROFILE_ID),
+    )
+    unknown = [f for f in result.findings if f.rule_id == "UNKNOWN-CLASS-001"]
+    assert unknown == []
+    assert "image-placeholder" not in result.cleaned_html
+
+
+def test_the_placeholder_is_still_conspicuous_without_a_class():
+    from app.engine import analyse_html
+    from app.profiles import DEFAULT_PROFILE_ID, load_profile
+
+    result = analyse_html('<p><img src="a.png"></p>', load_profile(DEFAULT_PROFILE_ID))
+    assert result.cleaned_html == "<p><strong>Image here: a.png</strong></p>"
+
+
+# --------------------------------------------------------------------------
+# Image problems belong in the Changes tab, not only in the Images table.
+# --------------------------------------------------------------------------
+
+def test_an_undersized_image_becomes_a_warning(folder, tmp_path):
+    """Reported: "I can't see where the small image is flagged"."""
+    from app.session import image_findings
+
+    Image.new("RGB", (250, 300), "white").save(folder / "thumb.png")
+    report = plan_images('<p><img src="thumb.png"></p>', folder, "a-post")
+    findings = image_findings(report)
+
+    small = [f for f in findings if f.rule_id == "IMAGE-TOO-SMALL-001"]
+    assert len(small) == 1
+    assert small[0].severity.value == "warning"
+    assert "250×300px" in small[0].message
+
+
+def test_an_unmatched_image_becomes_a_warning(folder):
+    from app.session import image_findings
+
+    report = plan_images('<p><img src="nowhere.png"></p>', folder, "a-post")
+    findings = image_findings(report)
+    missing = [f for f in findings if f.rule_id == "IMAGE-NOT-FOUND-001"]
+    assert len(missing) == 1
+    assert missing[0].severity.value == "warning"
+    assert "guessed" in missing[0].message
+
+
+def test_an_unused_file_becomes_a_suggestion(folder):
+    from app.session import image_findings
+
+    report = plan_images('<p><img src="screenshot.png"></p>', folder, "a-post")
+    findings = image_findings(report)
+    unused = [f for f in findings if f.rule_id == "IMAGE-UNUSED-001"]
+    # photo.jpg and small.png are in the folder but unreferenced.
+    assert len(unused) == 2
+    assert all(f.severity.value == "suggested" for f in unused)
+
+
+def test_a_clean_run_produces_no_image_findings(folder, tmp_path):
+    from app.session import image_findings
+
+    report = plan_images(
+        '<p><img src="screenshot.png"></p><p><img src="photo.jpg"></p>'
+        '<p><img src="small.png"></p>',
+        folder,
+        "a-post",
+    )
+    # small.png is 400px wide, so it is legitimately flagged; the other two are not.
+    ids = {f.rule_id for f in image_findings(report)}
+    assert "IMAGE-NOT-FOUND-001" not in ids
+    assert "IMAGE-UNUSED-001" not in ids
+
+
+def test_the_warnings_reach_the_changes_tab(folder, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    Image.new("RGB", (250, 300), "white").save(folder / "thumb.png")
+    client = TestClient(app)
+    response = client.post(
+        "/images",
+        data={
+            "source": '<p><img src="thumb.png"></p><p><img src="gone.png"></p>',
+            "history": "[]",
+            "folder": str(folder),
+            "post_url": "a-post",
+            "output_folder": str(tmp_path / "out"),
+            "tab": "images",
+        },
+    )
+    assert "IMAGE-TOO-SMALL-001" in response.text
+    assert "IMAGE-NOT-FOUND-001" in response.text

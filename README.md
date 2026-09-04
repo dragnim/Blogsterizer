@@ -373,6 +373,9 @@ The post URL is required: it names every output file. Processing does not alter 
 run it as often as you like. The placeholders name the **original** file — the Images table and the
 sidecar map those to the processed names.
 
+Anything needing a decision appears in the **Changes** tab as well as the Images table:
+`IMAGE-TOO-SMALL-001` and `IMAGE-NOT-FOUND-001` as Warnings, `IMAGE-UNUSED-001` as a Suggestion.
+
 An image much narrower than 1200px is reported as *too small* and converted at its own size, since
 enlarging cannot add detail. It is usually a WordPress thumbnail; find the original or drop the image.
 
