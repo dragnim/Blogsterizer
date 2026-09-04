@@ -27,8 +27,15 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z\u2395\u234b\u235e])")
 
 
 def _visible_text(html: str) -> str:
+    """The words a reader sees, with whitespace normalised.
+
+    A run of whitespace, a newline and a single space all render the same, so
+    they must compare the same: otherwise splitting a paragraph at a newline
+    looks like a copy change when the words are untouched.
+    """
     soup = BeautifulSoup(html, "html.parser")
-    return soup.get_text(" ", strip=True).replace("\xa0", " ")
+    text = soup.get_text(" ").replace("\xa0", " ")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _nth(soup: BeautifulSoup, name: str, index: int) -> Tag:
@@ -211,6 +218,66 @@ def split_paragraph(soup: BeautifulSoup, params: dict) -> str:
     return "Split one paragraph into two. No words were changed."
 
 
+def split_paragraph_lines(soup: BeautifulSoup, params: dict) -> str:
+    """Split one paragraph into several, at every internal line break.
+
+    Some old posts arrive as a single <p> holding the whole article, with the
+    paragraph breaks surviving only as newlines. Splitting at every line break
+    changes only <p> structure; the words stay exactly as written (handoff 9).
+    """
+    index = int(params.get("index", 0))
+    paragraph = _nth(soup, "p", index)
+
+    # Only split on breaks that fall in the paragraph's own text nodes, so
+    # inline markup is never cut in half.
+    parts: list[list[Any]] = [[]]
+    for child in list(paragraph.contents):
+        if isinstance(child, NavigableString):
+            pieces = re.split(r"\n+", str(child))
+            parts[-1].append(NavigableString(pieces[0]))
+            for piece in pieces[1:]:
+                parts.append([NavigableString(piece)])
+        else:
+            parts[-1].append(child.extract())
+
+    kept = [group for group in parts if "".join(
+        item.get_text() if isinstance(item, Tag) else str(item) for item in group
+    ).strip()]
+    if len(kept) < 2:
+        raise ActionError("That paragraph has no line breaks to split on.")
+
+    new_paragraphs: list[Tag] = []
+    for group in kept:
+        fresh = soup.new_tag("p")
+        for name, value in paragraph.attrs.items():
+            fresh[name] = value
+        for item in group:
+            fresh.append(item)
+        # Trim the whitespace the break used to occupy.
+        if fresh.contents and isinstance(fresh.contents[0], NavigableString):
+            fresh.contents[0].replace_with(NavigableString(str(fresh.contents[0]).lstrip()))
+        if fresh.contents and isinstance(fresh.contents[-1], NavigableString):
+            fresh.contents[-1].replace_with(NavigableString(str(fresh.contents[-1]).rstrip()))
+        new_paragraphs.append(fresh)
+
+    anchor = paragraph
+    for fresh in new_paragraphs:
+        anchor.insert_after(fresh)
+        anchor = fresh
+    paragraph.decompose()
+
+    return f"Split one paragraph into {len(new_paragraphs)}. No words were changed."
+
+
+def line_break_count(paragraph: Tag) -> int:
+    """How many of the paragraph's own text nodes contain a line break."""
+    total = 0
+    for child in paragraph.contents:
+        if isinstance(child, NavigableString):
+            total += len(re.findall(r"\n+", str(child)))
+    return total
+
+
 def suggest_split_offset(paragraph: Tag) -> int:
     """Character offset of the sentence boundary nearest the paragraph's middle.
 
@@ -255,6 +322,7 @@ ACTIONS: dict[str, Action] = {
         Action("split_paragraph", "Split this paragraph", split_paragraph),
         Action("set_id", "Change this id", set_id),
         Action("rewrite_url", "Repoint this link", rewrite_url),
+        Action("split_paragraph_lines", "Split at the line breaks", split_paragraph_lines),
     )
 }
 

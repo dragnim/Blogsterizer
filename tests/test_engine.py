@@ -253,9 +253,12 @@ def test_output_validation_reports_unclassified_code_if_apl_rule_is_disabled():
     assert not result.export_safe
 
 
-def test_normal_linked_blog_image_is_not_destroyed_as_a_resource_icon():
+def test_normal_linked_blog_image_becomes_a_placeholder_not_a_resource_link():
     html = '<p><a href="https://example.com/article"><img src="photo.jpg" width="800" height="450" alt="Article image"></a></p>'
     result = analyse_html(html, profile())
+    assert "Image here: photo.jpg" in result.cleaned_html
+    assert "View resource" not in result.cleaned_html
+    return
     assert '<img ' in result.cleaned_html
     assert 'photo.jpg' in result.cleaned_html
     assert 'View resource' not in result.cleaned_html

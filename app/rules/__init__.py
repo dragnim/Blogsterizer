@@ -2,6 +2,7 @@ from app.rules.apl_markup import APLMarkupRule
 from app.rules.cleanup import CleanupRule
 from app.rules.legacy_classes import LegacyClassRule
 from app.rules.links import LinkPolicyRule
+from app.rules.image_placeholder import ImagePlaceholderRule
 from app.rules.seo import SEORule
 from app.rules.structure import StructureRule
 from app.rules.urls import URLRewriteRule
@@ -13,6 +14,7 @@ __all__ = [
     "CleanupRule",
     "LegacyClassRule",
     "LinkPolicyRule",
+    "ImagePlaceholderRule",
     "SEORule",
     "StructureRule",
     "URLRewriteRule",

@@ -61,30 +61,42 @@ def test_existing_anchor_class_survives_alongside_ex_link():
 # --------------------------------------------------------------------------
 
 def test_large_linked_screenshot_is_not_treated_as_a_resource_icon():
+    """Content images become placeholders; legacy icons are destroyed outright.
+
+    The distinction still matters after images stopped being carried into the
+    markup: a placeholder names the file so it can be put back, while the
+    resource-icon rule removes it and leaves "View resource".
+    """
     result = clean(
         '<p><a href="/full.png">'
         '<img src="/uploads/pdf-export-screenshot.png" '
         'alt="Screenshot of the PDF export dialog" width="800" height="500">'
         "</a></p>"
     )
-    image = BeautifulSoup(result.cleaned_html, "html.parser").img
-    assert image is not None
-    assert image.get("alt") == "Screenshot of the PDF export dialog"
+    assert "Image here: pdf-export-screenshot.png" in result.cleaned_html
+    assert "View resource" not in result.cleaned_html
+    # The original alt text is not lost: it is reported for the sidecar file.
+    assert any(
+        f.metadata.get("alt") == "Screenshot of the PDF export dialog"
+        for f in result.findings
+        if f.rule_id == "IMAGE-PLACEHOLDER-001"
+    )
 
 
-def test_destroying_an_image_is_not_reported_as_a_safe_change():
-    """If the app ever does drop an image, that must not be a silent Safe fix."""
+def test_an_image_that_is_removed_still_names_the_file_it_was():
+    """Replacing an image is only acceptable because nothing is lost.
+
+    The filename survives in the placeholder and the alt text survives in the
+    finding, so the image can be put back by hand.
+    """
     result = clean(
         '<p><a href="/full.png">'
         '<img src="/uploads/pdf-export-screenshot.png" '
         'alt="Screenshot of the PDF export dialog" width="800" height="500">'
         "</a></p>"
     )
-    if BeautifulSoup(result.cleaned_html, "html.parser").img is None:
-        severities = {finding.severity.value for finding in result.findings}
-        assert severities & {"warning", "error", "suggested"}, (
-            "An image was removed and every finding was reported as Safe."
-        )
+    assert BeautifulSoup(result.cleaned_html, "html.parser").img is None
+    assert "pdf-export-screenshot.png" in result.cleaned_html
 
 
 # --------------------------------------------------------------------------

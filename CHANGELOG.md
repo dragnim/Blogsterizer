@@ -15,6 +15,28 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.16.0
+
+Found by pasting a real post's output into WordPress.
+
+* **Images never reach the new markup.** Every `<img>` becomes a placeholder
+  naming the file it stood for. The block serialiser had been emitting
+  `wp:image` blocks whose `src` still pointed at `www.dyalog.com`, which would
+  publish a hotlink to the site being migrated away from. This overrides handoff
+  section 11, "normal images must survive" — that rule was written when the app
+  destroyed images silently, and nothing is destroyed here: the filename is in
+  the placeholder and the original alt text is in the finding.
+* A thumbnail that links somewhere keeps its link.
+  `<a href="report.pdf"><img></a>` is a link to the report, and swallowing the
+  anchor with the image lost the PDF entirely. Found by an existing test.
+* The SEO missing-alt check runs before images are replaced, so it still fires.
+* `PARAGRAPH-LINES-001` flags a single `<p>` holding several paragraphs' worth of
+  text, with one action to split at every line break. One real post arrived as
+  the whole article inside a single `<p>`, its paragraph breaks surviving only as
+  newlines.
+* The action copy check normalises whitespace, so a newline and a space compare
+  equal. Splitting at a newline was being refused as a copy change.
+
 ## 0.15.0
 
 Image preparation. Point the app at a folder of a post's images and it pairs each

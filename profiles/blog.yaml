@@ -9,6 +9,7 @@ rule_order:
   - link_policy
   - cleanup
   - seo
+  - image_placeholder
   - output_validation
 
 url_rewrites:
@@ -99,6 +100,10 @@ rules:
   legacy_classes: true
   link_policy: true
   cleanup: true
+  # Images are never carried into the new markup: the old src points at the site
+  # being migrated away from, and the images are processed separately.
+  image_placeholder:
+    replace_images: true
   # Report-only SEO and structure checks. Nothing here changes the HTML.
   seo:
     flag_h1: true

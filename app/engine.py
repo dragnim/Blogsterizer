@@ -13,6 +13,7 @@ from app.rules import (
     APLMarkupRule,
     CleanupRule,
     LegacyClassRule,
+    ImagePlaceholderRule,
     LinkPolicyRule,
     SEORule,
     StructureRule,
@@ -147,12 +148,16 @@ def _build_rules(profile: dict[str, Any]):
         "legacy_classes": LegacyClassRule(profile.get("legacy_classes", {})),
         "link_policy": LinkPolicyRule(profile.get("link_policy", {})),
         "cleanup": CleanupRule(profile.get("cleanup", {})),
+        "image_placeholder": ImagePlaceholderRule(
+            rules_config.get("image_placeholder", {})
+            if isinstance(rules_config.get("image_placeholder"), dict) else {}
+        ),
         "seo": SEORule(rules_config.get("seo", {}) if isinstance(rules_config.get("seo"), dict) else {}),
         "output_validation": OutputValidationRule(profile),
     }
     order = profile.get(
         "rule_order",
-        ["url_rewrites", "webinar_layout", "structure", "apl_markup", "legacy_classes", "link_policy", "cleanup", "seo", "output_validation"],
+        ["url_rewrites", "webinar_layout", "structure", "apl_markup", "legacy_classes", "link_policy", "cleanup", "seo", "image_placeholder", "output_validation"],
     )
     return [rule_map[name] for name in order if name in rule_map and rules_config.get(name, True) is not False]
 

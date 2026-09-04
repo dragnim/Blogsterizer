@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from app.models import Finding, Severity
-from app.actions import suggest_split_offset
+from app.actions import line_break_count, suggest_split_offset
 from app.rules.base import Rule
 
 
@@ -388,6 +388,35 @@ class StructureRule(Rule):
 
         long_paragraph_threshold = int(self.config.get("long_paragraph_threshold", 650))
         paragraphs = soup.find_all("p")
+
+        # A single <p> holding the whole article, with the paragraph breaks
+        # surviving only as newlines. Splitting at every break changes only <p>
+        # structure, so it is offered as one action rather than a long paragraph
+        # suggestion the user would have to apply repeatedly.
+        for index, paragraph in enumerate(paragraphs):
+            breaks = line_break_count(paragraph)
+            if breaks < 2:
+                continue
+            findings.append(
+                Finding(
+                    rule_id="PARAGRAPH-LINES-001",
+                    title="One paragraph holding several",
+                    message=(
+                        f"This paragraph contains {breaks} line breaks, so it is probably "
+                        f"{breaks + 1} paragraphs that lost their markup. Splitting at the "
+                        "breaks changes only the paragraph structure; the words stay as "
+                        "written. No change was made."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html=str(paragraph)[:600],
+                    applied=False,
+                    metadata={"breaks": breaks},
+                    action="split_paragraph_lines",
+                    action_label=f"Split into {breaks + 1} paragraphs",
+                    action_params={"index": index},
+                )
+            )
+
         for index, paragraph in enumerate(paragraphs):
             text = paragraph.get_text(" ", strip=True)
             if len(text) < long_paragraph_threshold:

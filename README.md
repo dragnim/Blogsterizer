@@ -307,6 +307,25 @@ That final step is deliberate: a transformation is not considered part of the Bl
 - Free-form editorial/typo checking is not implemented yet; the current reports are deterministic HTML/content-structure checks.
 - Arbitrary ASCII-only code in unmarked plain prose cannot be inferred safely; use backticks in plain-text input or `<code>` in HTML input.
 
+## Images are not carried into the markup
+
+Every `<img>` is replaced with a placeholder naming the file it stood for:
+
+```html
+<p class="image-placeholder"><strong>Image here: employeespotlight_martin_01.jpeg</strong></p>
+```
+
+The old `src` points at the site being migrated away from, so carrying it through would publish a
+hotlink to it. The images are processed separately (below) and placed by hand.
+
+Nothing is lost: the filename is in the placeholder, the original alt text is reported for the sidecar
+file, and a thumbnail that links somewhere keeps its link with the placeholder as its text. An image
+inside a sentence gets an inline placeholder so the paragraph stays valid.
+
+This overrides handoff section 11, "normal images must survive", which was written when the app was
+destroying images silently. Set `rules.image_placeholder.replace_images: false` in
+`profiles/blog.yaml` to turn it off.
+
 ## Preparing images
 
 The **Images** tab takes a folder containing the post's images and the post URL. For each
