@@ -140,6 +140,7 @@ what you see afterwards is a real analysis, not a patched findings list.
 | `URL-HOST-ALL-001` | Repoint every link on that host in one press |
 | `SEO-HEADING-ORDER-001` | Promote the whole run of headings at that level, so the outline is not left half-fixed |
 | `SEO-FAKE-HEADING-ALL-001` | Convert every all-bold paragraph to a heading at once |
+| `PARAGRAPH-LOOSE-001` | Wrap loose lines in paragraphs, where a post has no `<p>` tags and single-newline breaks |
 
 Each button shows **After, if you apply this** in its Details, so you can see the exact result before
 committing to it. Where an action produces more than one element — splitting a paragraph, say — the

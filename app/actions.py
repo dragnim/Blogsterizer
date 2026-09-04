@@ -261,6 +261,16 @@ def convert_to_blockquote(soup: BeautifulSoup, params: dict) -> str:
     return f'Changed a <div> to <blockquote>: "{text}".'
 
 
+# Inline elements that can sit in a run of loose text. <img> is included: an
+# image is inline, and leaving it out meant the count was taken with the images
+# still present but the split happened after they became placeholders, so the
+# button's label disagreed with what it did.
+LOOSE_INLINE_TAGS = {
+    "a", "abbr", "b", "br", "cite", "code", "del", "em", "i", "img", "ins",
+    "kbd", "mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup",
+    "u", "var",
+}
+
 PLACEHOLDER_RE = re.compile(r"^\[?Image here: (?P<file>.+?)\]?$")
 
 
@@ -435,6 +445,140 @@ def split_paragraph(soup: BeautifulSoup, params: dict) -> str:
     return "Split one paragraph into two. No words were changed."
 
 
+def split_loose_text(soup: BeautifulSoup, params: dict) -> str:
+    """Wrap each line of loose top-level text in its own paragraph.
+
+    Classic content often has no <p> tags at all, with the paragraph breaks
+    surviving only as newlines, so everything becomes one enormous paragraph
+    block. Only <p> structure changes here; the words stay exactly as written
+    (handoff 9).
+    """
+    made = 0
+
+    while True:
+        run = _next_loose_run(soup)
+        if run is None:
+            break
+
+        markup = "".join(
+            item.decode(formatter="minimal") if isinstance(item, Tag) else str(item)
+            for item in run
+        )
+        lines = [line.strip() for line in re.split(r"\n+", markup)]
+        kept = [line for line in lines if _line_has_content(line)]
+
+        if len(kept) < 2:
+            # Nothing to split here; mark it so the search moves on.
+            for item in run:
+                if isinstance(item, NavigableString):
+                    item.replace_with(NavigableString(str(item).replace("\n", " ")))
+            continue
+
+        replacement = BeautifulSoup(
+            "".join(f"<p>{line}</p>" for line in kept), "html.parser"
+        )
+        new_nodes = list(replacement.contents)
+        run[0].replace_with(*new_nodes)
+        for item in run[1:]:
+            item.extract()
+        made += len(new_nodes)
+
+    if not made:
+        raise ActionError("There is no loose text with line breaks to split.")
+    return f"Wrapped loose text in {made} paragraphs. No words were changed."
+
+
+def _line_has_content(line_html: str) -> bool:
+    """Whether a split line is worth a paragraph of its own.
+
+    Text counts, and so does an element with no text: a line holding only an
+    <img> is a paragraph. Counting on text alone meant the count was taken
+    before images became placeholders and disagreed with the split afterwards.
+    """
+    fragment = BeautifulSoup(line_html, "html.parser")
+    if fragment.get_text().strip():
+        return True
+    return fragment.find(["img", "iframe", "video", "audio", "object"]) is not None
+
+
+# The block serialiser already splits loose content at blank lines. Suggesting a
+# split at every line break is only worth it where that gains something: on the
+# corpus, most posts use blank lines and are already split correctly, so
+# suggesting it everywhere was pure noise.
+LINE_BREAK = r"\n+"
+BLANK_LINE = r"\n[ \t]*\n"
+
+
+def count_loose_paragraphs(soup: BeautifulSoup, separator: str = LINE_BREAK) -> int:
+    """How many paragraphs split_loose_text would make.
+
+    Counted the same way the action splits, so the button's label cannot
+    disagree with what it does. Pass BLANK_LINE to count what the serialiser
+    already produces.
+    """
+    total = 0
+    for run in _all_loose_runs(soup):
+        markup = "".join(
+            item.decode(formatter="minimal") if isinstance(item, Tag) else str(item)
+            for item in run
+        )
+        lines = [line.strip() for line in re.split(separator, markup)]
+        kept = [line for line in lines if _line_has_content(line)]
+        total += max(len(kept), 1)
+    return total
+
+
+def _all_loose_runs(soup: BeautifulSoup) -> list[list[Any]]:
+    runs: list[list[Any]] = []
+    nodes = list(soup.contents)
+    index = 0
+    while index < len(nodes):
+        if not _is_loose(nodes[index]):
+            index += 1
+            continue
+        run: list[Any] = []
+        while index < len(nodes) and (
+            _is_loose(nodes[index])
+            or (isinstance(nodes[index], NavigableString) and not str(nodes[index]).strip())
+        ):
+            run.append(nodes[index])
+            index += 1
+        while run and isinstance(run[-1], NavigableString) and not str(run[-1]).strip():
+            run.pop()
+        if any(isinstance(item, NavigableString) and "\n" in str(item) for item in run):
+            runs.append(run)
+    return runs
+
+
+def _next_loose_run(soup: BeautifulSoup) -> list[Any] | None:
+    """The next run of loose top-level content that contains a line break."""
+    nodes = list(soup.contents)
+    index = 0
+    while index < len(nodes):
+        node = nodes[index]
+        if not _is_loose(node):
+            index += 1
+            continue
+        run: list[Any] = []
+        while index < len(nodes) and (
+            _is_loose(nodes[index])
+            or (isinstance(nodes[index], NavigableString) and not str(nodes[index]).strip())
+        ):
+            run.append(nodes[index])
+            index += 1
+        while run and isinstance(run[-1], NavigableString) and not str(run[-1]).strip():
+            run.pop()
+        if any(isinstance(item, NavigableString) and "\n" in str(item) for item in run):
+            return run
+    return None
+
+
+def _is_loose(node: Any) -> bool:
+    if isinstance(node, NavigableString):
+        return bool(str(node).strip())
+    return isinstance(node, Tag) and node.name in LOOSE_INLINE_TAGS
+
+
 def split_paragraph_lines(soup: BeautifulSoup, params: dict) -> str:
     """Split one paragraph into several, at every internal line break.
 
@@ -559,6 +703,7 @@ ACTIONS: dict[str, Action] = {
         Action("convert_to_blockquote", "Make this a blockquote", convert_to_blockquote),
         Action("set_code_language", "Set the code language", set_code_language),
         Action("split_paragraph_lines", "Split at the line breaks", split_paragraph_lines),
+        Action("split_loose_text", "Wrap the lines in paragraphs", split_loose_text),
     )
 }
 

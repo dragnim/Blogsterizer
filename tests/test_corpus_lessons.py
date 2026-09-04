@@ -276,3 +276,93 @@ def test_bold_inside_a_sentence_is_untouched_by_the_bulk_action():
     html = "<p>Once we have a table, <strong>all</strong> lookups are faster.</p>"
     with pytest.raises(ActionError, match="No all-bold paragraphs"):
         apply_action(html, "promote_bold_paragraph_run", {"level": 3})
+
+
+# --------------------------------------------------------------------------
+# A post with no <p> tags at all and single-newline paragraph breaks.
+# Reported: the whole post arrived in WordPress as one paragraph, and the app
+# had given no suggestions whatsoever to indicate it.
+# --------------------------------------------------------------------------
+
+MARTIN = (
+    '<img src="https://www.dyalog.com/blog/wp-content/uploads/2026/08/martin_01-250x300.jpeg"'
+    ' alt="" width="250" height="300" class="alignright size-medium wp-image-9757" />'
+    "When Martin joined Dyalog last year, he confessed to a secret identity.\n"
+    "Since arriving, Martin has taken on the behind-the-scenes work.\n"
+    "Coming from more corporate environments, Martin found the culture refreshing.\n"
+    '<img src="https://www.dyalog.com/blog/wp-content/uploads/2026/08/martin_02.jpeg"'
+    ' alt="" width="2420" height="1816" class="aligncenter size-full wp-image-9756" />'
+)
+
+
+def test_a_post_with_no_paragraph_tags_is_flagged():
+    """Previously silent: no suggestions at all on a post like this."""
+    result = clean(MARTIN)
+    finding = rule(result, "PARAGRAPH-LOOSE-001")
+    assert len(finding) == 1
+    assert finding[0].severity.value == "suggested"
+    assert "single line breaks, not blank lines" in finding[0].message
+    assert "1 paragraph block" in finding[0].message
+    assert not finding[0].applied
+
+
+def test_content_split_by_blank_lines_is_not_flagged():
+    """The serialiser already handles those; suggesting it everywhere was noise.
+
+    On the corpus this condition took the suggestion from 21 posts of 22 down to
+    the 9 where it actually gains something.
+    """
+    result = clean("First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
+    assert rule(result, "PARAGRAPH-LOOSE-001") == []
+    # And they are already separate blocks.
+    assert result.block_markup.count("<!-- wp:paragraph -->") == 3
+
+
+def test_the_button_label_matches_what_it_does():
+    """The count is taken before images become placeholders, so both must use
+    the same definition of a line worth keeping."""
+    result = clean(MARTIN)
+    finding = rule(result, "PARAGRAPH-LOOSE-001")[0]
+    updated, message = apply_action(
+        result.cleaned_html, finding.action, finding.action_params
+    )
+    assert finding.action_label == "Wrap the lines in 4 paragraphs"
+    assert "in 4 paragraphs" in message
+
+
+def test_wrapping_the_lines_gives_separate_blocks():
+    result = clean(MARTIN)
+    finding = rule(result, "PARAGRAPH-LOOSE-001")[0]
+    updated, _ = apply_action(result.cleaned_html, finding.action, finding.action_params)
+    after = clean(updated)
+    assert after.block_markup.count("<!-- wp:paragraph -->") == 4
+    assert after.copy_preserved
+    assert after.counts["error"] == 0
+
+
+def test_wrapping_the_lines_changes_no_words():
+    result = clean(MARTIN)
+    finding = rule(result, "PARAGRAPH-LOOSE-001")[0]
+    updated, _ = apply_action(result.cleaned_html, finding.action, finding.action_params)
+    before_words = BeautifulSoup(result.cleaned_html, "html.parser").get_text(" ", strip=True).split()
+    after_words = BeautifulSoup(updated, "html.parser").get_text(" ", strip=True).split()
+    assert before_words == after_words
+
+
+def test_an_image_only_line_gets_its_own_paragraph():
+    """It has no text, but it is still a paragraph."""
+    result = clean(MARTIN)
+    finding = rule(result, "PARAGRAPH-LOOSE-001")[0]
+    updated, _ = apply_action(result.cleaned_html, finding.action, finding.action_params)
+    paragraphs = BeautifulSoup(updated, "html.parser").find_all("p")
+    assert "martin_02.jpeg" in paragraphs[-1].get_text()
+
+
+def test_content_that_already_has_paragraphs_is_not_flagged():
+    result = clean("<p>First.</p>\n<p>Second.</p>")
+    assert rule(result, "PARAGRAPH-LOOSE-001") == []
+
+
+def test_a_single_line_of_loose_text_is_not_flagged():
+    result = clean("Just one line of loose text.")
+    assert rule(result, "PARAGRAPH-LOOSE-001") == []

@@ -7,7 +7,12 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from app.models import Finding, Severity
-from app.actions import line_break_count, suggest_split_offset
+from app.actions import (
+    BLANK_LINE,
+    count_loose_paragraphs,
+    line_break_count,
+    suggest_split_offset,
+)
 from app.rules.base import Rule
 
 
@@ -414,6 +419,35 @@ class StructureRule(Rule):
                     action="convert_to_blockquote",
                     action_label="Make this a blockquote",
                     action_params={"index": index},
+                )
+            )
+
+        # Loose top-level text with line breaks and no <p> tags at all. The
+        # whole post becomes one paragraph block, and until this was reported
+        # nothing said so: the post produced no suggestions whatsoever.
+        # Only worth suggesting where it gains something: the serialiser already
+        # splits loose content at blank lines, and most posts use those.
+        loose_paragraphs = count_loose_paragraphs(soup)
+        already = count_loose_paragraphs(soup, BLANK_LINE)
+        if loose_paragraphs > already:
+            findings.append(
+                Finding(
+                    rule_id="PARAGRAPH-LOOSE-001",
+                    title="No paragraph tags at all",
+                    message=(
+                        f"Loose text here is separated by single line breaks, not blank "
+                        f"lines, so it becomes {already} paragraph block(s) in WordPress "
+                        f"when it is probably {loose_paragraphs}. Wrapping the lines "
+                        "changes only the paragraph structure; the words stay as written. "
+                        "No change was made."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html="",
+                    applied=False,
+                    metadata={"paragraphs": loose_paragraphs},
+                    action="split_loose_text",
+                    action_label=f"Wrap the lines in {loose_paragraphs} paragraphs",
+                    action_params={},
                 )
             )
 

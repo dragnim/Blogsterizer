@@ -15,6 +15,32 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.20.0
+
+Reported: a post arrived in WordPress as one enormous paragraph, and the app had
+given **no suggestions at all** to indicate it.
+
+The source had no `<p>` tags and used single newlines between paragraphs. The
+blank-line splitting added in 0.13.1 only handles blank lines, and
+`PARAGRAPH-LINES-001` only looks inside existing `<p>` elements, so nothing
+noticed. Silence was the real failure here: the output was wrong and the app
+said everything was fine.
+
+* `PARAGRAPH-LOOSE-001` reports loose content separated by single line breaks,
+  with a **Wrap the lines in N paragraphs** button. Only `<p>` structure changes;
+  the words stay as written (handoff 9). An image-only line gets its own
+  paragraph.
+* It fires only where it gains something. The serialiser already splits at blank
+  lines, and most posts use those — suggesting it everywhere would have flagged
+  21 of the 22 corpus posts for nothing. Comparing against what the serialiser
+  already produces brings that down to the 9 that genuinely gain.
+* The count and the split share one definition of a line worth keeping, so the
+  button's label cannot disagree with what it does. It did, at first: the count
+  ran before images became placeholders, and an image-only line has no text.
+
+The malformed delimiters in the reported markup were not reproducible from the
+source; the app's output for it is balanced, one open and one close.
+
 ## 0.19.6
 
 * `IMAGE-TOO-SMALL-001` and `IMAGE-NOT-FOUND-001` now have a **Remove the
