@@ -68,6 +68,44 @@ def _wrap(soup: BeautifulSoup, element: Tag, tag_name: str, class_name: str) -> 
     return wrapper
 
 
+def _quote_markup(soup: BeautifulSoup, element: Tag) -> str:
+    """A quote block, with its paragraphs as nested blocks.
+
+    core/quote holds paragraph *blocks*, not loose text: a <blockquote> with
+    bare text inside it fails block validation with "unexpected or invalid
+    content". Loose text is therefore wrapped in a <p> first, and each paragraph
+    gets its own wp:paragraph delimiters.
+    """
+    # Wrap any loose text in a paragraph, so the blockquote holds only blocks.
+    for child in list(element.contents):
+        if isinstance(child, NavigableString) and str(child).strip():
+            paragraph = soup.new_tag("p")
+            child.wrap(paragraph)
+
+    inner: list[str] = []
+    for child in element.contents:
+        if isinstance(child, IGNORED_NODES):
+            continue
+        if isinstance(child, NavigableString):
+            continue
+        if not isinstance(child, Tag):
+            continue
+        if child.name == "p":
+            open_tag, close_tag = _delimiters("paragraph")
+            inner.append(f"{open_tag}\n{child.decode(formatter='minimal')}\n{close_tag}")
+        elif child.name == "cite":
+            # A citation belongs to the block, not to its paragraphs.
+            inner.append(child.decode(formatter="minimal"))
+        else:
+            inner.append(child.decode(formatter="minimal"))
+
+    _add_class(element, BLOCK_CLASSES["quote"])
+    classes = " ".join(element.get("class", []))
+    body = "\n".join(inner)
+    open_tag, close_tag = _delimiters("quote")
+    return f'{open_tag}\n<blockquote class="{classes}">\n{body}\n</blockquote>\n{close_tag}'
+
+
 def _classify(element: Tag) -> tuple[str, dict[str, Any] | None]:
     """Map a top-level element to a core block name and its attributes."""
     name = element.name
@@ -180,6 +218,10 @@ def to_block_markup(html: str) -> tuple[str, list[Finding]]:
 
         block_name, attributes = _classify(node)
         element = node
+
+        if block_name == "quote":
+            pieces.append(_quote_markup(soup, element))
+            continue
 
         if block_name == "code":
             # core/code stores its content through the <code> selector, so a class

@@ -249,6 +249,14 @@ def convert_to_blockquote(soup: BeautifulSoup, params: dict) -> str:
     element.name = "blockquote"
     if element.has_attr("style"):
         del element["style"]
+
+    # A blockquote holding bare text fails WordPress block validation, so the
+    # text goes in a paragraph.
+    for child in list(element.contents):
+        if isinstance(child, NavigableString) and str(child).strip():
+            paragraph = soup.new_tag("p")
+            child.wrap(paragraph)
+
     text = element.get_text(" ", strip=True)[:60]
     return f'Changed a <div> to <blockquote>: "{text}".'
 

@@ -149,7 +149,7 @@ def test_every_code_block_carries_its_language_on_the_pre():
 
 def test_block_markup_delimiters_are_balanced():
     markup = result().block_markup
-    assert re.findall(r"<!-- wp:([a-z]+)", markup) == re.findall(r"<!-- /wp:([a-z]+)", markup)
+    assert_delimiters_balance(markup)
 
 
 def test_block_markup_keeps_every_word():
@@ -184,3 +184,15 @@ def test_real_post_seo_findings():
     for rule_id, group in by_rule.items():
         if rule_id.startswith("SEO-"):
             assert all(not f.applied for f in group)
+
+def assert_delimiters_balance(markup: str) -> None:
+    """Blocks nest — a quote holds paragraph blocks — so compare with a stack."""
+    stack: list[str] = []
+    for closing, name in re.findall(r"<!-- (/?)wp:([a-z-]+)", markup):
+        if closing:
+            assert stack, f"closed {name} with nothing open"
+            opened = stack.pop()
+            assert opened == name, f"closed {name} but {opened} was open"
+        else:
+            stack.append(name)
+    assert not stack, f"never closed: {stack}"

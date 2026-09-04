@@ -15,6 +15,23 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.3
+
+* Fixed the quote block failing validation in WordPress. `core/quote` holds
+  paragraph *blocks*, not loose text, so
+
+      <blockquote class="wp-block-quote">If it walks like a duck.</blockquote>
+
+  gave "Block contains unexpected or invalid content". The text now goes in a
+  `<p>`, and each paragraph inside a quote gets its own `wp:paragraph`
+  delimiters, which is what Gutenberg itself saves. A `<cite>` stays with the
+  block.
+* `convert_to_blockquote` wraps the text in a `<p>` too, so the plain HTML
+  output is valid for the same reason.
+* Blocks can now nest, so the delimiter checks use a stack rather than comparing
+  two flat lists — the old check would have called a correctly nested quote
+  unbalanced.
+
 ## 0.19.2
 
 * The link checker found broken links and offered no way to fix them. Every row

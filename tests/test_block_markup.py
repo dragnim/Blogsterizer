@@ -95,10 +95,33 @@ def test_every_opened_block_is_closed():
         "<h2>Title</h2><p>Text</p><ul><li>Item</li></ul>"
         "<pre><code>A←1</code></pre><blockquote><p>Quote</p></blockquote>"
     )
-    opened = re.findall(r"<!-- wp:([a-z-]+)", result.block_markup)
-    closed = re.findall(r"<!-- /wp:([a-z-]+)", result.block_markup)
-    assert opened == closed
-    assert opened  # and it actually produced something
+    assert_delimiters_balance(result.block_markup)
+    assert "<!-- wp:" in result.block_markup
+
+
+def test_a_quote_holds_paragraph_blocks_not_loose_text():
+    """core/quote fails validation on bare text: "unexpected or invalid content"."""
+    result = clean("<blockquote>If it walks like a duck.</blockquote>")
+    markup = result.block_markup
+    assert "<!-- wp:quote -->" in markup
+    assert 'class="wp-block-quote"' in markup
+    # The text is inside a nested paragraph block, as Gutenberg saves it.
+    assert "<!-- wp:paragraph -->" in markup
+    assert "<p>If it walks like a duck.</p>" in markup
+    assert_delimiters_balance(markup)
+
+
+def test_a_quote_that_already_has_paragraphs_is_not_double_wrapped():
+    result = clean("<blockquote><p>One.</p><p>Two.</p></blockquote>")
+    assert result.block_markup.count("<!-- wp:paragraph -->") == 2
+    assert "<p><p>" not in result.block_markup
+    assert_delimiters_balance(result.block_markup)
+
+
+def test_a_citation_stays_in_the_quote_block():
+    result = clean("<blockquote><p>Quoted.</p><cite>Someone</cite></blockquote>")
+    assert "<cite>Someone</cite>" in result.block_markup
+    assert_delimiters_balance(result.block_markup)
 
 
 def test_block_markup_is_idempotent_through_the_cleaner():
@@ -226,3 +249,15 @@ def test_definition_list_falls_back_to_custom_html_and_says_so():
     assert "<!-- wp:html -->" in result.block_markup
     assert "<dt>Feature</dt>" in result.block_markup
     assert any(f.rule_id == "BLOCK-MARKUP-001" for f in result.findings)
+
+def assert_delimiters_balance(markup: str) -> None:
+    """Blocks nest — a quote holds paragraph blocks — so compare with a stack."""
+    stack: list[str] = []
+    for closing, name in re.findall(r"<!-- (/?)wp:([a-z-]+)", markup):
+        if closing:
+            assert stack, f"closed {name} with nothing open"
+            opened = stack.pop()
+            assert opened == name, f"closed {name} but {opened} was open"
+        else:
+            stack.append(name)
+    assert not stack, f"never closed: {stack}"

@@ -110,7 +110,7 @@ def test_every_external_link_gets_the_policy(path, profile):
 @pytest.mark.parametrize("path", FIXTURES, ids=IDS)
 def test_block_markup_delimiters_balance_for_every_post(path, profile):
     markup = analyse_html(path.read_text(encoding="utf-8"), profile).block_markup
-    assert re.findall(r"<!-- wp:([a-z-]+)", markup) == re.findall(r"<!-- /wp:([a-z-]+)", markup)
+    assert_delimiters_balance(markup)
 
 
 @pytest.mark.parametrize("path", FIXTURES, ids=IDS)
@@ -125,3 +125,15 @@ def test_block_markup_keeps_every_word_of_the_cleaned_html(path, profile):
 def test_no_stale_dyalog_tv_url_survives(path, profile):
     cleaned = analyse_html(path.read_text(encoding="utf-8"), profile).cleaned_html
     assert "dyalog.tv" not in cleaned
+
+def assert_delimiters_balance(markup: str) -> None:
+    """Blocks nest — a quote holds paragraph blocks — so compare with a stack."""
+    stack: list[str] = []
+    for closing, name in re.findall(r"<!-- (/?)wp:([a-z-]+)", markup):
+        if closing:
+            assert stack, f"closed {name} with nothing open"
+            opened = stack.pop()
+            assert opened == name, f"closed {name} but {opened} was open"
+        else:
+            stack.append(name)
+    assert not stack, f"never closed: {stack}"

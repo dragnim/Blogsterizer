@@ -13,4 +13,4 @@ Versioning, while below 1.0:
                    content and the WordPress round trip is verified end to end
 """
 
-__version__ = "0.19.2"
+__version__ = "0.19.3"
