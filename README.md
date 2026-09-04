@@ -137,6 +137,9 @@ what you see afterwards is a real analysis, not a patched findings list.
 | `PARAGRAPH-REVIEW-001` | Split the paragraph at the suggested sentence boundary |
 | `SEO-DUPLICATE-ID-001` | Change the id, on either side of the collision, with a suggested value you can edit first |
 | `URL-HOST-001` | Repoint a link from the old Dyalog host to the current one, with the target editable |
+| `URL-HOST-ALL-001` | Repoint every link on that host in one press |
+| `SEO-HEADING-ORDER-001` | Promote the whole run of headings at that level, so the outline is not left half-fixed |
+| `SEO-FAKE-HEADING-ALL-001` | Convert every all-bold paragraph to a heading at once |
 
 Each button shows **After, if you apply this** in its Details, so you can see the exact result before
 committing to it. Where an action produces more than one element — splitting a paragraph, say — the
@@ -148,6 +151,9 @@ Every warning the app raises has a way to resolve it. Where an action needs a va
 one and puts it in an editable box: for a duplicate id it suggests a slug from the element's own text,
 and it refuses a value that is malformed or already used elsewhere. Only the *later* occurrences of a
 duplicate id are offered for renaming, so existing anchor links still reach the original element.
+
+A form submission never changes tab: press a button in the Links tab and the results appear in the
+Links tab. Only clicking a tab changes tab.
 
 **Copy** and **Download** ask for confirmation if warnings are still open, and the export toolbars show
 how many. It is a question, not a block: an Error stops export outright, a Warning only asks.

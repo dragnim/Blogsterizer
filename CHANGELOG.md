@@ -15,6 +15,22 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.1
+
+* Fixed forms throwing you onto a different tab. Every form on the results page
+  posts back to it, and the page always re-rendered on **Clean HTML** — so
+  pressing *Check links* did the work and then dumped you somewhere else, and the
+  same happened to Apply, Undo, Process images and Draft Yoast fields. Each form
+  now says which tab it came from and the page returns to it. Only clicking a tab
+  changes tab.
+* `SEO-HEADING-ORDER-001` now has a button. It promotes the whole run of
+  headings at that level, not one: the post that raised this had four `<h4>`s
+  under an `<h2>`, and fixing one would have left three skipping two levels. The
+  run stops at the next shallower heading, so a later section is untouched. The
+  message says it may have been a styling choice, since it may well have been.
+* `SEO-FAKE-HEADING-ALL-001` converts every all-bold paragraph to a heading in
+  one press, alongside the individual suggestions. One post had four.
+
 ## 0.19.0
 
 Built from running 22 real posts through the app. The frequency mattered: a

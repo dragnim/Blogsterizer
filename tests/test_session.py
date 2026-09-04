@@ -93,12 +93,33 @@ def test_split_preview_shows_the_two_resulting_paragraphs():
     assert preview == "<p>One sentence here.</p><p>Two sentence here now.</p>"
 
 
-def test_every_actionable_finding_carries_a_preview():
+# A bulk action changes the whole document, so its finding lists what would be
+# affected rather than carrying one fragment to transform. There is nothing
+# meaningful to preview, and a preview of the entire post would not help.
+BULK_ACTIONS = {
+    "URL-HOST-ALL-001",
+    "SEO-FAKE-HEADING-ALL-001",
+}
+
+
+def test_every_single_target_action_carries_a_preview():
     session = build_session(FIXTURE.read_text(encoding="utf-8"), profile())
-    actionable = [f for f in session.findings if f.action]
+    actionable = [
+        f for f in session.findings if f.action and f.rule_id not in BULK_ACTIONS
+    ]
     assert actionable
     for finding in actionable:
         assert finding.action_preview, f"{finding.rule_id} has no preview"
+
+
+def test_a_bulk_action_says_what_it_would_affect_instead():
+    session = build_session(FIXTURE.read_text(encoding="utf-8"), profile())
+    bulk = [f for f in session.findings if f.rule_id in BULK_ACTIONS]
+    for finding in bulk:
+        # No fragment preview, but the count and the list must be there.
+        assert finding.before_html, finding.rule_id
+        assert finding.action_label
+        assert any(char.isdigit() for char in finding.action_label), finding.action_label
 
 
 def test_a_preview_never_raises_into_the_page():

@@ -75,31 +75,63 @@ class SEORule(Rule):
 
     def _heading_order(self, soup: BeautifulSoup) -> list[Finding]:
         findings: list[Finding] = []
+        headings = soup.find_all(HEADINGS)
         previous: Tag | None = None
-        for heading in soup.find_all(HEADINGS):
-            if previous is not None and _level(heading) > _level(previous) + 1:
-                findings.append(
-                    Finding(
-                        rule_id="SEO-HEADING-ORDER-001",
-                        title="Heading level skipped",
-                        message=(
-                            f"<{heading.name}> follows <{previous.name}>, skipping a level. "
-                            "Screen readers and search engines read the heading levels as an "
-                            "outline. No change was made."
-                        ),
-                        severity=Severity.SUGGESTED,
-                        before_html=str(heading)[:300],
-                        applied=False,
-                        metadata={"from": previous.name, "to": heading.name},
-                    )
+
+        for index, heading in enumerate(headings):
+            if previous is None or _level(heading) <= _level(previous) + 1:
+                previous = heading
+                continue
+
+            # How many headings share this level in this run? Promoting them one
+            # at a time would leave the outline worse halfway through, so the
+            # action moves the whole run.
+            level = _level(heading)
+            run = 1
+            for later in headings[index + 1:]:
+                if _level(later) < level:
+                    break
+                if _level(later) == level:
+                    run += 1
+
+            findings.append(
+                Finding(
+                    rule_id="SEO-HEADING-ORDER-001",
+                    title="Heading level skipped",
+                    message=(
+                        f"<{heading.name}> follows <{previous.name}>, skipping a level. "
+                        "Screen readers and search engines read the heading levels as an "
+                        "outline. This may have been a styling choice — if the level is "
+                        f"really meant to be <h{level - 1}>, the button fixes "
+                        + (
+                            f"all {run} headings at this level together, since fixing one "
+                            "would leave the rest skipping further."
+                            if run > 1
+                            else "it."
+                        )
+                        + " No change was made."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html=str(heading)[:300],
+                    applied=False,
+                    metadata={"from": previous.name, "to": heading.name, "run": run},
+                    action="promote_heading_run",
+                    action_label=(
+                        f"Promote all {run} to <h{level - 1}>" if run > 1
+                        else f"Promote to <h{level - 1}>"
+                    ),
+                    action_params={"index": index},
                 )
+            )
             previous = heading
+
         return findings
 
     def _fake_headings(self, soup: BeautifulSoup) -> list[Finding]:
         """A paragraph whose whole content is bold is usually a heading in disguise."""
         findings: list[Finding] = []
         paragraphs = soup.find_all("p")
+        candidates: list[Tag] = []
         for paragraph in paragraphs:
             children = [
                 child for child in paragraph.children
@@ -113,6 +145,7 @@ class SEORule(Rule):
             text = only.get_text(" ", strip=True)
             if not text or len(text) > 100:
                 continue
+            candidates.append(paragraph)
             findings.append(
                 Finding(
                     rule_id="SEO-FAKE-HEADING-001",
@@ -131,6 +164,31 @@ class SEORule(Rule):
                     action_params={"index": paragraphs.index(paragraph), "level": 3},
                 )
             )
+
+        if len(candidates) > 1:
+            findings.insert(
+                0,
+                Finding(
+                    rule_id="SEO-FAKE-HEADING-ALL-001",
+                    title=f"{len(candidates)} bold paragraphs used as headings",
+                    message=(
+                        f"{len(candidates)} paragraphs are entirely bold and look like "
+                        "section headings. Converting them all at once keeps the page "
+                        "outline consistent; the individual suggestions below let you pick "
+                        "and choose instead. No change was made."
+                    ),
+                    severity=Severity.SUGGESTED,
+                    before_html="<br>".join(
+                        item.get_text(" ", strip=True)[:60] for item in candidates[:8]
+                    ),
+                    applied=False,
+                    metadata={"count": len(candidates)},
+                    action="promote_bold_paragraph_run",
+                    action_label=f"Make all {len(candidates)} headings",
+                    action_params={"level": 3},
+                ),
+            )
+
         return findings
 
     def _image_alt(self, soup: BeautifulSoup) -> list[Finding]:

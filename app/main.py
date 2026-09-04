@@ -125,6 +125,7 @@ async def apply_suggestion(
     action: str = Form(...),
     params: str = Form("{}"),
     value: str = Form(""),
+    tab: str = Form("changes"),
 ):
     """Record one chosen fix and rebuild the whole session from the source."""
     try:
@@ -140,6 +141,7 @@ async def apply_suggestion(
                 "result": session,
                 "source": source,
                 "history": [],
+                "active_tab": tab,
                 "action_error": "That change could not be read. The analysis has been reloaded.",
             },
         )
@@ -166,6 +168,7 @@ async def apply_suggestion(
             "result": session,
             "source": source,
             "history": entries,
+            "active_tab": tab,
             "notice": notice,
             "action_error": session.error,
         },
@@ -178,6 +181,7 @@ async def undo_fix(
     source: str = Form(...),
     history: str = Form("[]"),
     index: int = Form(-1),
+    tab: str = Form("changes"),
 ):
     """Remove one fix and replay the rest.
 
@@ -205,6 +209,7 @@ async def undo_fix(
             "result": session,
             "source": source,
             "history": entries,
+            "active_tab": tab,
             "notice": "Undid the last change." if undone else None,
             "action_error": session.error,
         },
@@ -221,6 +226,7 @@ async def prepare_images(
     output_folder: str = Form(""),
     overwrite: str = Form(""),
     draft_text: str = Form(""),
+    tab: str = Form("images"),
 ):
     """Process a folder of images and swap each <img> for a placeholder.
 
@@ -287,6 +293,7 @@ async def prepare_images(
             "result": session,
             "source": updated_source,
             "history": entries,
+            "active_tab": tab,
             "notice": notice,
             "action_error": error or session.error,
             "image_folder": folder,
@@ -300,6 +307,7 @@ async def draft_seo_fields(
     request: Request,
     source: str = Form(...),
     history: str = Form("[]"),
+    tab: str = Form("seo"),
 ):
     """Draft the Yoast focus keyphrase and meta description for this post.
 
@@ -321,6 +329,7 @@ async def draft_seo_fields(
             "result": session,
             "source": source,
             "history": entries,
+            "active_tab": tab,
             "post_seo": draft,
         },
     )
@@ -332,6 +341,7 @@ async def check_document_links(
     source: str = Form(...),
     history: str = Form("[]"),
     mode: str = Form("current"),
+    tab: str = Form("links"),
 ):
     """Check the links in the current document. Requests the network, on demand.
 
@@ -360,6 +370,7 @@ async def check_document_links(
             "result": session,
             "source": source,
             "history": entries,
+            "active_tab": tab,
             "link_results": results,
             "link_summary": summarise(results),
             "link_mode": mode,

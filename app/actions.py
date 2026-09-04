@@ -72,6 +72,79 @@ def remove_class(soup: BeautifulSoup, params: dict) -> str:
     return f'Removed class="{name}" from {removed} element{"s" if removed != 1 else ""}.'
 
 
+def promote_heading_run(soup: BeautifulSoup, params: dict) -> str:
+    """Move a whole run of same-level headings up one level.
+
+    Fixing one heading at a time would leave the outline worse than it started:
+    the pynapl post has four <h4>s directly under an <h2>, and promoting one
+    gives h2 > h3 followed by three h4s that now skip two levels. The run moves
+    together.
+
+    The run is every heading at this level from here up to the next heading that
+    is shallower, so a later section with its own headings is untouched.
+    """
+    index = int(params.get("index", 0))
+    headings = soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
+    if index < 0 or index >= len(headings):
+        raise ActionError("That heading is no longer in the document. Re-run the analysis.")
+
+    start = headings[index]
+    level = int(start.name[1])
+    if level <= 2:
+        raise ActionError("That heading is already as high as it can go.")
+
+    run = [start]
+    for heading in headings[index + 1:]:
+        this_level = int(heading.name[1])
+        if this_level < level:
+            break
+        if this_level == level:
+            run.append(heading)
+
+    for heading in run:
+        heading.name = f"h{level - 1}"
+
+    count = len(run)
+    return (
+        f"Promoted {count} heading{'s' if count != 1 else ''} from <h{level}> to "
+        f"<h{level - 1}>."
+    )
+
+
+def promote_bold_paragraph_run(soup: BeautifulSoup, params: dict) -> str:
+    """Turn every all-bold paragraph in the document into a heading.
+
+    One post had four of them acting as section headings; converting them one at
+    a time is tedious and leaves the outline half-done.
+    """
+    level = int(params.get("level", 3))
+    converted = 0
+
+    for paragraph in list(soup.find_all("p")):
+        children = [
+            child for child in paragraph.children
+            if not (isinstance(child, NavigableString) and not str(child).strip())
+        ]
+        if len(children) != 1:
+            continue
+        only = children[0]
+        if not isinstance(only, Tag) or only.name not in {"strong", "b"}:
+            continue
+        text = only.get_text(" ", strip=True)
+        if not text or len(text) > 100:
+            continue
+        only.unwrap()
+        paragraph.name = f"h{level}"
+        converted += 1
+
+    if not converted:
+        raise ActionError("No all-bold paragraphs are left. Re-run the analysis.")
+    return (
+        f"Changed {converted} bold paragraph{'s' if converted != 1 else ''} to "
+        f"<h{level}>."
+    )
+
+
 def demote_heading(soup: BeautifulSoup, params: dict) -> str:
     """Turn an <h1> into an <h2> (or any heading down one level)."""
     index = int(params.get("index", 0))
@@ -392,6 +465,12 @@ ACTIONS: dict[str, Action] = {
     for action in (
         Action("remove_class", "Remove this class", remove_class),
         Action("demote_heading", "Demote to the next level", demote_heading),
+        Action("promote_heading_run", "Promote these headings", promote_heading_run),
+        Action(
+            "promote_bold_paragraph_run",
+            "Make all the bold paragraphs headings",
+            promote_bold_paragraph_run,
+        ),
         Action("promote_bold_paragraph", "Make this a heading", promote_bold_paragraph),
         Action("split_paragraph", "Split this paragraph", split_paragraph),
         Action("set_id", "Change this id", set_id),

@@ -177,3 +177,102 @@ def test_nested_code_elements_are_a_warning():
 def test_ordinary_code_raises_nothing():
     result = clean("<pre><code>A\u21901 2 3</code></pre>")
     assert rule(result, "NESTED-CODE-001") == []
+
+
+# --------------------------------------------------------------------------
+# Heading levels — 2 of 22 posts skipped h2 to h4, and one had four <h4>s in
+# a row, so fixing one at a time would have left the outline worse.
+# --------------------------------------------------------------------------
+
+def test_a_skipped_heading_offers_to_promote_the_whole_run():
+    result = clean(
+        "<h2>The First Commits</h2>"
+        "<h4>Setting up Poetry</h4><p>a</p>"
+        "<h4>Auto-Formatting</h4><p>b</p>"
+        "<h4>Fixing Imports</h4>"
+    )
+    finding = rule(result, "SEO-HEADING-ORDER-001")
+    assert len(finding) == 1
+    assert finding[0].action == "promote_heading_run"
+    assert finding[0].action_label == "Promote all 3 to <h3>"
+    assert finding[0].metadata["run"] == 3
+    # It may have been a styling choice, so it is offered, not applied.
+    assert not finding[0].applied
+    assert "<h4>" in result.cleaned_html
+
+
+def test_promoting_a_run_stops_at_the_next_section():
+    updated, message = apply_action(
+        "<h2>One</h2><h4>a</h4><h4>b</h4><h2>Two</h2><h4>c</h4>",
+        "promote_heading_run",
+        {"index": 1},
+    )
+    soup = BeautifulSoup(updated, "html.parser")
+    levels = [(h.name, h.get_text()) for h in soup.find_all(["h2", "h3", "h4"])]
+    assert levels == [
+        ("h2", "One"), ("h3", "a"), ("h3", "b"), ("h2", "Two"), ("h4", "c"),
+    ]
+    assert "3 headings" not in message  # only two were in this run
+
+
+def test_promoting_a_run_changes_no_copy():
+    html = "<h2>One</h2><h4>Setting up Poetry</h4><h4>Auto-Formatting</h4>"
+    updated, _ = apply_action(html, "promote_heading_run", {"index": 1})
+    assert BeautifulSoup(updated, "html.parser").get_text(" ", strip=True) == (
+        BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+    )
+
+
+def test_a_lone_skipped_heading_says_so():
+    result = clean("<h2>One</h2><h4>Only one</h4>")
+    finding = rule(result, "SEO-HEADING-ORDER-001")[0]
+    assert finding.action_label == "Promote to <h3>"
+    assert finding.metadata["run"] == 1
+
+
+def test_an_h2_cannot_be_promoted_further():
+    with pytest.raises(ActionError, match="as high as it can go"):
+        apply_action("<h2>One</h2>", "promote_heading_run", {"index": 0})
+
+
+# --------------------------------------------------------------------------
+# Several bold paragraphs acting as headings — one post had four.
+# --------------------------------------------------------------------------
+
+def test_several_bold_paragraphs_offer_one_bulk_action():
+    result = clean(
+        "<p><strong>Why Hash?</strong></p><p>text</p>"
+        "<p><strong>TANSTAAFL</strong></p><p>more</p>"
+        "<p><strong>The Tradeoff</strong></p>"
+    )
+    bulk = rule(result, "SEO-FAKE-HEADING-ALL-001")
+    assert len(bulk) == 1
+    assert bulk[0].action_label == "Make all 3 headings"
+    # The individual suggestions remain, for picking and choosing.
+    assert len(rule(result, "SEO-FAKE-HEADING-001")) == 3
+
+
+def test_a_single_bold_paragraph_gets_no_bulk_action():
+    result = clean("<p><strong>Why Hash?</strong></p>")
+    assert rule(result, "SEO-FAKE-HEADING-ALL-001") == []
+    assert len(rule(result, "SEO-FAKE-HEADING-001")) == 1
+
+
+def test_the_bulk_conversion_changes_every_one_and_no_copy():
+    html = (
+        "<p><strong>Why Hash?</strong></p><p>text</p>"
+        "<p><strong>TANSTAAFL</strong></p>"
+    )
+    updated, message = apply_action(html, "promote_bold_paragraph_run", {"level": 3})
+    soup = BeautifulSoup(updated, "html.parser")
+    assert [h.get_text() for h in soup.find_all("h3")] == ["Why Hash?", "TANSTAAFL"]
+    assert "2 bold paragraphs" in message
+    assert soup.get_text(" ", strip=True) == BeautifulSoup(html, "html.parser").get_text(
+        " ", strip=True
+    )
+
+
+def test_bold_inside_a_sentence_is_untouched_by_the_bulk_action():
+    html = "<p>Once we have a table, <strong>all</strong> lookups are faster.</p>"
+    with pytest.raises(ActionError, match="No all-bold paragraphs"):
+        apply_action(html, "promote_bold_paragraph_run", {"level": 3})

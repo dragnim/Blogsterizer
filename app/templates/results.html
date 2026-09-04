@@ -48,6 +48,7 @@
             <li>
                 <span>{{ fix.message }}</span>
                 <form action="/undo" method="post">
+                    <input type="hidden" name="tab" value="changes">
                     <input type="hidden" name="source" value="{{ source }}">
                     <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
                     <input type="hidden" name="index" value="{{ loop.index0 }}">
@@ -82,17 +83,18 @@
 
 <section class="results-panel" data-open-warnings="{{ result.counts.warning }}">
     <div class="tabs" role="tablist" aria-label="Results">
-        <button class="tab active" type="button" data-tab="clean" role="tab" aria-selected="true">Clean HTML</button>
-        <button class="tab" type="button" data-tab="blocks" role="tab" aria-selected="false">Block markup</button>
-        <button class="tab" type="button" data-tab="preview" role="tab" aria-selected="false">Preview</button>
-        <button class="tab" type="button" data-tab="changes" role="tab" aria-selected="false">Changes</button>
-        <button class="tab" type="button" data-tab="diff" role="tab" aria-selected="false">Diff</button>
-        <button class="tab" type="button" data-tab="links" role="tab" aria-selected="false">Links</button>
-        <button class="tab" type="button" data-tab="seo" role="tab" aria-selected="false">Yoast</button>
-        <button class="tab" type="button" data-tab="images" role="tab" aria-selected="false">Images</button>
+        {% set current = active_tab or "clean" %}
+        <button class="tab {% if current == 'clean' %}active{% endif %}" type="button" data-tab="clean" role="tab" aria-selected="{{ 'true' if current == 'clean' else 'false' }}">Clean HTML</button>
+        <button class="tab {% if current == 'blocks' %}active{% endif %}" type="button" data-tab="blocks" role="tab" aria-selected="{{ 'true' if current == 'blocks' else 'false' }}">Block markup</button>
+        <button class="tab {% if current == 'preview' %}active{% endif %}" type="button" data-tab="preview" role="tab" aria-selected="{{ 'true' if current == 'preview' else 'false' }}">Preview</button>
+        <button class="tab {% if current == 'changes' %}active{% endif %}" type="button" data-tab="changes" role="tab" aria-selected="{{ 'true' if current == 'changes' else 'false' }}">Changes</button>
+        <button class="tab {% if current == 'diff' %}active{% endif %}" type="button" data-tab="diff" role="tab" aria-selected="{{ 'true' if current == 'diff' else 'false' }}">Diff</button>
+        <button class="tab {% if current == 'links' %}active{% endif %}" type="button" data-tab="links" role="tab" aria-selected="{{ 'true' if current == 'links' else 'false' }}">Links</button>
+        <button class="tab {% if current == 'seo' %}active{% endif %}" type="button" data-tab="seo" role="tab" aria-selected="{{ 'true' if current == 'seo' else 'false' }}">Yoast</button>
+        <button class="tab {% if current == 'images' %}active{% endif %}" type="button" data-tab="images" role="tab" aria-selected="{{ 'true' if current == 'images' else 'false' }}">Images</button>
     </div>
 
-    <div class="tab-panel active" data-panel="clean" role="tabpanel">
+    <div class="tab-panel {% if current == 'clean' %}active{% endif %}" data-panel="clean" role="tabpanel" {% if current != 'clean' %}hidden{% endif %}>
         <div class="toolbar">
             {% if result.export_safe %}
             <button type="button" data-copy-target="cleaned-html">Copy HTML</button>
@@ -107,7 +109,7 @@
         <pre><code id="cleaned-html">{{ result.cleaned_html }}</code></pre>
     </div>
 
-    <div class="tab-panel" data-panel="blocks" role="tabpanel" hidden>
+    <div class="tab-panel {% if current == 'blocks' %}active{% endif %}" data-panel="blocks" role="tabpanel" {% if current != 'blocks' %}hidden{% endif %}>
         <div class="toolbar">
             {% if result.export_safe %}
             <button type="button" data-copy-target="block-markup">Copy block markup</button>
@@ -123,11 +125,11 @@
         <pre><code id="block-markup">{{ result.block_markup }}</code></pre>
     </div>
 
-    <div class="tab-panel" data-panel="preview" role="tabpanel" hidden>
+    <div class="tab-panel {% if current == 'preview' %}active{% endif %}" data-panel="preview" role="tabpanel" {% if current != 'preview' %}hidden{% endif %}>
         <iframe class="preview-frame" title="Preview of cleaned HTML" sandbox srcdoc="{{ result.cleaned_html|e }}"></iframe>
     </div>
 
-    <div class="tab-panel" data-panel="changes" role="tabpanel" hidden>
+    <div class="tab-panel {% if current == 'changes' %}active{% endif %}" data-panel="changes" role="tabpanel" {% if current != 'changes' %}hidden{% endif %}>
         <div class="changes-heading">
             <strong>Changes and issues</strong>
             <span id="finding-count">Showing {{ result.findings|length }} of {{ result.findings|length }}</span>
@@ -154,6 +156,7 @@
                     <p>{{ finding.message }}</p>
                     {% if finding.action %}
                     <form class="finding-action" action="/apply" method="post">
+                    <input type="hidden" name="tab" value="changes">
                         <input type="hidden" name="source" value="{{ source }}">
                         <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
                         <input type="hidden" name="action" value="{{ finding.action }}">
@@ -206,8 +209,9 @@
         {% endif %}
     </div>
 
-    <div class="tab-panel" data-panel="seo" role="tabpanel" {% if not post_seo %}hidden{% endif %}>
+    <div class="tab-panel {% if current == 'seo' %}active{% endif %}" data-panel="seo" role="tabpanel" {% if current != 'seo' %}hidden{% endif %}>
         <form action="/seo-draft" method="post" class="toolbar">
+                    <input type="hidden" name="tab" value="seo">
             <input type="hidden" name="source" value="{{ source }}">
             <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
             <button type="submit">{% if post_seo %}Draft again{% else %}Draft Yoast fields{% endif %}</button>
@@ -237,8 +241,9 @@
         {% endif %}
     </div>
 
-    <div class="tab-panel" data-panel="images" role="tabpanel" {% if not result.images %}hidden{% endif %}>
+    <div class="tab-panel {% if current == 'images' %}active{% endif %}" data-panel="images" role="tabpanel" {% if current != 'images' %}hidden{% endif %}>
         <form action="/images" method="post" class="image-form">
+                    <input type="hidden" name="tab" value="images">
             <input type="hidden" name="source" value="{{ source }}">
             <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
             <label class="field">
@@ -296,14 +301,16 @@
         {% endif %}
     </div>
 
-    <div class="tab-panel" data-panel="links" role="tabpanel" {% if not link_results %}hidden{% endif %}>
+    <div class="tab-panel {% if current == 'links' %}active{% endif %}" data-panel="links" role="tabpanel" {% if current != 'links' %}hidden{% endif %}>
         <form action="/check-links" method="post" class="toolbar">
+            <input type="hidden" name="tab" value="links">
             <input type="hidden" name="source" value="{{ source }}">
             <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
             <input type="hidden" name="mode" value="current">
             <button type="submit">Check the links as they are</button>
         </form>
         <form action="/check-links" method="post" class="toolbar">
+            <input type="hidden" name="tab" value="links">
             <input type="hidden" name="source" value="{{ source }}">
             <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
             <input type="hidden" name="mode" value="targets">
@@ -344,7 +351,7 @@
         {% endif %}
     </div>
 
-    <div class="tab-panel" data-panel="diff" role="tabpanel" hidden>
+    <div class="tab-panel {% if current == 'diff' %}active{% endif %}" data-panel="diff" role="tabpanel" {% if current != 'diff' %}hidden{% endif %}>
         <pre><code>{{ result.diff or 'No differences.' }}</code></pre>
     </div>
 
