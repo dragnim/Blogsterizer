@@ -416,6 +416,11 @@ The **Links** tab asks each link in the document whether it still resolves. This
 app that touches the network, so it runs only when you press the button and is never part of the
 analysis: every rule finding stays reproducible offline.
 
+Any row that is not **ok** carries two buttons: the URL in an editable box with **Update link**, and
+**Remove the link, keep the text** for a target that has gone. Unlinking keeps the wording exactly —
+deleting the words is a copy change and stays with you. Fixing a link re-runs the analysis, so check
+again afterwards.
+
 Results are one of **broken** (a 404, a timeout, a failed request), **inconclusive** (a 403, 405 or 429
 — plenty of sites answer that way to anything that is not a browser, so check it by hand before
 believing it), **not checked** (relative, in-page, `mailto:`, or an address on a private network), or

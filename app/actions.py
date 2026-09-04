@@ -20,6 +20,8 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from app.text import visible_text
+
 
 class ActionError(ValueError):
     """The action could not be applied to the supplied HTML."""
@@ -29,15 +31,8 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z\u2395\u234b\u235e])")
 
 
 def _visible_text(html: str) -> str:
-    """The words a reader sees, with whitespace normalised.
-
-    A run of whitespace, a newline and a single space all render the same, so
-    they must compare the same: otherwise splitting a paragraph at a newline
-    looks like a copy change when the words are untouched.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(" ").replace("\xa0", " ")
-    return re.sub(r"\s+", " ", text).strip()
+    """The words a reader sees. One shared definition (see app.text)."""
+    return visible_text(html)
 
 
 def _nth(soup: BeautifulSoup, name: str, index: int) -> Tag:
@@ -258,6 +253,31 @@ def convert_to_blockquote(soup: BeautifulSoup, params: dict) -> str:
     return f'Changed a <div> to <blockquote>: "{text}".'
 
 
+def unlink(soup: BeautifulSoup, params: dict) -> str:
+    """Remove a link, keeping the words it wrapped.
+
+    For a broken link where the target is simply gone. The link text stays
+    exactly as written: deleting the words would be a copy change, and handoff 2
+    reserves that for you.
+    """
+    href = str(params.get("from_url", ""))
+    if not href:
+        raise ActionError("No URL was supplied.")
+
+    anchors = soup.find_all("a", href=href)
+    if not anchors:
+        raise ActionError("That link is no longer in the document. Re-run the analysis.")
+
+    for anchor in anchors:
+        anchor.unwrap()
+
+    count = len(anchors)
+    return (
+        f"Removed {count} link{'s' if count != 1 else ''} to {href}, keeping the "
+        "text. Delete the wording yourself if it no longer makes sense."
+    )
+
+
 def rewrite_host(soup: BeautifulSoup, params: dict) -> str:
     """Repoint every link on one host at another host.
 
@@ -475,6 +495,7 @@ ACTIONS: dict[str, Action] = {
         Action("split_paragraph", "Split this paragraph", split_paragraph),
         Action("set_id", "Change this id", set_id),
         Action("rewrite_url", "Repoint this link", rewrite_url),
+        Action("unlink", "Remove this link, keeping the text", unlink),
         Action("rewrite_host", "Repoint every link on this host", rewrite_host),
         Action("convert_to_blockquote", "Make this a blockquote", convert_to_blockquote),
         Action("set_code_language", "Set the code language", set_code_language),

@@ -15,6 +15,22 @@ test asserted that literal, so bumping it would have failed the suite. From
 
 ---
 
+## 0.19.2
+
+* The link checker found broken links and offered no way to fix them. Every row
+  that is not **ok** now carries the URL in an editable box with an **Update
+  link** button, and a **Remove the link, keep the text** button for a target
+  that has simply gone. Unlinking keeps the wording exactly: deleting the words
+  is a copy change and handoff 2 reserves that for you.
+* Fixing a link stays on the Links tab, and the panel says to check again
+  afterwards, since the results are from before the fix.
+* **One definition of visible text**, in `app/text.py`, shared by both copy
+  guards. There were two, and they behaved differently: the engine's was
+  corrected in 0.14.1 to stop treating inline element boundaries as whitespace,
+  the per-action one was not. That is why unlinking an anchor sitting before a
+  full stop was refused — "See notes ." and "See notes." looked like different
+  copy. Pinned by a test comparing the two.
+
 ## 0.19.1
 
 * Fixed forms throwing you onto a different tab. Every form on the results page

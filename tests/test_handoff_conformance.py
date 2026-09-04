@@ -230,3 +230,32 @@ def test_reimporting_block_markup_is_stable():
     twice = clean(once).block_markup
     assert once == twice
     assert "wp:paragraph</p>" not in twice  # the comment must not become text
+
+
+def test_both_copy_guards_share_one_definition_of_visible_text():
+    """Two definitions meant two behaviours.
+
+    The engine's guard was corrected in 0.14.1 to stop treating inline element
+    boundaries as whitespace. The per-action guard was not, and it refused to
+    unlink an anchor sitting before a full stop, on the grounds that "See
+    notes ." and "See notes." were different copy.
+    """
+    from app import actions, engine
+    from app.text import visible_text
+
+    for html in (
+        '<p>See <a href="x">notes</a>.</p>',
+        "<p><code><span>x</span>y</code></p>",
+        "<p>a</p><p>b</p>",
+        "<!-- wp:paragraph --><p>Text.</p>",
+        "<p>line one<br>line two</p>",
+    ):
+        assert engine._visible_text(html) == visible_text(html), html
+        assert actions._visible_text(html) == visible_text(html), html
+
+
+def test_an_inline_element_before_punctuation_is_not_a_copy_change():
+    from app.text import visible_text
+
+    assert visible_text('<p>See <a href="x">notes</a>.</p>') == "See notes."
+    assert visible_text("<p>See notes.</p>") == "See notes."

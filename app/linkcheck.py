@@ -42,6 +42,9 @@ class LinkResult:
     final_url: str | None = None
     occurrences: int = 1
     texts: list[str] = field(default_factory=list)
+    # The href as written in the document. The same as `url` when checking the
+    # links as they are; the *old* URL when checking migration targets.
+    document_href: str = ""
 
     @property
     def redirected(self) -> bool:
@@ -158,6 +161,7 @@ async def check_links(html: str) -> list[LinkResult]:
     for result in results:
         result.occurrences = len(links[result.url])
         result.texts = links[result.url]
+        result.document_href = result.url
 
     order = {"broken": 0, "inconclusive": 1, "skipped": 2, "ok": 3}
     results.sort(key=lambda item: (order.get(item.outcome, 9), item.url))
@@ -207,8 +211,9 @@ async def check_migration_targets(
     for original, target in sorted(targets.items()):
         result = by_target[target]
         # Say which old link this is about, since that is what the user will
-        # be looking for in the post.
+        # be looking for in the post, and what an action has to target.
         result.texts = [original]
+        result.document_href = original
         ordered.append(result)
 
     order = {"broken": 0, "inconclusive": 1, "skipped": 2, "ok": 3}

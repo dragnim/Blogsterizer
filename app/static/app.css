@@ -957,3 +957,31 @@ mark.added {
     font-size: 0.8rem;
     color: var(--muted);
 }
+
+
+/* Fixing a link from the check results. */
+.link-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.link-actions form { margin: 0; }
+
+.link-actions button {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.28rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.link-actions button:hover {
+    border-color: var(--accent, #e8730a);
+    color: var(--accent, #e8730a);
+}

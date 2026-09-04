@@ -7,7 +7,8 @@ from typing import Any, Iterable
 
 from bs4 import BeautifulSoup, Comment, Doctype, NavigableString, ProcessingInstruction, Tag
 
-from app.blocks import INLINE_TAGS, to_block_markup
+from app.blocks import to_block_markup
+from app.text import visible_text
 from app.models import AnalysisResult, Finding, Severity
 from app.rules import (
     APLMarkupRule,
@@ -50,38 +51,9 @@ def plain_text_to_html(text: str) -> str:
     )
 
 
-def _node_text(node: Any) -> str:
-    """Text of one node, inserting a break only at a block boundary."""
-    # A comment is not visible copy. This matters because block markup carries
-    # its structure in comments, so treating them as text made re-importing the
-    # block output look like a copy change.
-    if isinstance(node, (Comment, Doctype, ProcessingInstruction)):
-        return ""
-    if isinstance(node, NavigableString):
-        return str(node)
-    if not isinstance(node, Tag):
-        return ""
-    if node.name in {"script", "style", "template", "noscript"}:
-        return ""
-    if node.name == "br":
-        return "\n"
-    inner = "".join(_node_text(child) for child in node.children)
-    # An inline element contributes no whitespace of its own; a block one does.
-    return inner if node.name in INLINE_TAGS else f"\n{inner}\n"
-
-
 def _visible_text(html: str) -> str:
-    """The text a reader would see.
-
-    Inline elements do not introduce whitespace when a browser renders them:
-    `<span>x</span>y` reads as "xy", not "x y". Extracting with a separator at
-    every element boundary made the guard see a copy change whenever an inline
-    wrapper was added or removed mid-word — which is exactly what a syntax
-    highlighter does. Only block boundaries separate words here.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    text = "".join(_node_text(node) for node in soup.contents)
-    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+    """The words a reader sees. One shared definition (see app.text)."""
+    return visible_text(html)
 
 
 def _tokens(html: str) -> list[str]:

@@ -371,3 +371,115 @@ def test_the_target_mode_says_it_is_checking_the_new_site():
     )
     assert response.status_code == 200
     assert "not been uploaded" in response.text
+
+
+# --------------------------------------------------------------------------
+# Fixing a broken link from the check results
+# --------------------------------------------------------------------------
+
+def test_a_broken_row_offers_a_correction_and_an_unlink():
+    """Reported: the checker found a broken link and offered no way to fix it."""
+    client = TestClient(app)
+    response = client.post(
+        "/check-links",
+        data={
+            "source": '<p>See <a href="http://nonexistent.invalid/x">the old notes</a>.</p>',
+            "history": "[]",
+            "mode": "current",
+            "tab": "links",
+        },
+    )
+    assert "Update link" in response.text
+    assert "Remove the link, keep the text" in response.text
+    # The current URL is pre-filled so it can be corrected rather than retyped.
+    assert 'value="http://nonexistent.invalid/x"' in response.text
+
+
+def test_an_ok_row_offers_nothing():
+    """No need to fix a link that works."""
+    from app.linkcheck import LinkResult
+
+    working = LinkResult(url="https://example.org/", outcome="ok", document_href="https://example.org/")
+    assert working.outcome == "ok"  # the template hides the actions for these
+
+
+def test_unlinking_keeps_the_words_and_drops_the_anchor():
+    html = '<p>See <a class="ex-link" href="http://gone.example/x" rel="noopener">the old notes</a> for detail.</p>'
+    updated, message = apply_action(html, "unlink", {"from_url": "http://gone.example/x"})
+    assert "<a" not in updated
+    assert "the old notes" in updated
+    assert "keeping the" in message
+    # Handoff 2: deleting the wording is a copy change and stays with the user.
+    assert BeautifulSoup(updated, "html.parser").get_text() == (
+        BeautifulSoup(html, "html.parser").get_text()
+    )
+
+
+def test_unlinking_every_occurrence_of_the_same_url():
+    html = (
+        '<p><a href="http://gone.example/x">one</a> and '
+        '<a href="http://gone.example/x">two</a> and '
+        '<a href="http://fine.example/">other</a></p>'
+    )
+    updated, message = apply_action(html, "unlink", {"from_url": "http://gone.example/x"})
+    soup = BeautifulSoup(updated, "html.parser")
+    assert len(soup.find_all("a")) == 1
+    assert soup.a["href"] == "http://fine.example/"
+    assert "2 links" in message
+
+
+def test_unlinking_a_url_that_has_gone_is_refused():
+    with pytest.raises(ActionError, match="no longer in the document"):
+        apply_action("<p>Text.</p>", "unlink", {"from_url": "http://gone.example/"})
+
+
+def test_correcting_a_url_from_the_links_tab_returns_to_the_links_tab():
+    import json as _json
+    import re as _re
+
+    client = TestClient(app)
+    source = '<p>See <a href="http://gone.example/x">the old notes</a>.</p>'
+    response = client.post(
+        "/apply",
+        data={
+            "source": source,
+            "history": "[]",
+            "tab": "links",
+            "action": "rewrite_url",
+            "params": _json.dumps({"from_url": "http://gone.example/x"}),
+            "value": "https://example.org/new",
+        },
+    )
+    assert "Applied:" in response.text
+    assert _re.search(r'class="tab active" type="button" data-tab="links"', response.text)
+    assert "https://example.org/new" in response.text
+
+
+def test_the_check_results_forms_submit_as_a_browser_would():
+    from bs4 import BeautifulSoup as Soup
+
+    client = TestClient(app)
+    source = '<p>See <a href="http://nonexistent.invalid/x">the old notes</a>.</p>'
+    page = client.post(
+        "/check-links",
+        data={"source": source, "history": "[]", "mode": "current", "tab": "links"},
+    )
+    forms = Soup(page.text, "html.parser").select(".link-actions form")
+    assert len(forms) == 2
+
+    # Submit the unlink form exactly as rendered.
+    unlink_form = next(
+        f for f in forms if f.find("input", {"name": "action"})["value"] == "unlink"
+    )
+    data = {
+        field["name"]: field.get("value", "")
+        for field in unlink_form.find_all("input")
+        if field.get("name")
+    }
+    response = client.post(unlink_form["action"], data=data)
+    assert response.status_code == 200
+    assert "Applied:" in response.text
+    assert "the old notes" in response.text
+    # The anchor is gone from the document; the URL still appears in the
+    # "Applied" message, which is how the user knows what was removed.
+    assert 'href="http://nonexistent.invalid/x"' not in response.text

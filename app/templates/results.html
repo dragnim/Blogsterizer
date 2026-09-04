@@ -326,6 +326,9 @@
         with a 403 or similar; that is reported as inconclusive, not broken.</p>
 
         {% if link_results %}
+        <p class="field-help">Fixing a link re-runs the analysis, so come back and check again
+        afterwards. Removing a link keeps its wording: deleting the words is a copy change and
+        stays with you.</p>
         <p class="link-summary">
             <span class="link-chip broken">{{ link_summary.broken }} broken</span>
             <span class="link-chip inconclusive">{{ link_summary.inconclusive }} inconclusive</span>
@@ -343,7 +346,33 @@
                     {% if link_mode == 'targets' and item.texts %}<br><span class="link-redirect">from <code>{{ item.texts[0] }}</code></span>{% endif %}
                     {% if item.redirected %}<br><span class="link-redirect">redirects to <code>{{ item.final_url }}</code></span>{% endif %}
                 </td>
-                <td><span class="link-outcome {{ item.outcome }}">{{ item.outcome }}</span> {{ item.detail }}</td>
+                <td>
+                    <span class="link-outcome {{ item.outcome }}">{{ item.outcome }}</span> {{ item.detail }}
+                    {% if item.outcome != 'ok' and item.document_href %}
+                    <div class="link-actions">
+                        <form action="/apply" method="post">
+                            <input type="hidden" name="source" value="{{ source }}">
+                            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+                            <input type="hidden" name="tab" value="links">
+                            <input type="hidden" name="action" value="rewrite_url">
+                            <input type="hidden" name="params" value="{{ {'from_url': item.document_href}|tojson|forceescape }}">
+                            <label class="action-input">
+                                <span>Correct URL</span>
+                                <input type="text" name="value" value="{{ item.document_href }}" spellcheck="false" size="46">
+                            </label>
+                            <button type="submit">Update link</button>
+                        </form>
+                        <form action="/apply" method="post">
+                            <input type="hidden" name="source" value="{{ source }}">
+                            <input type="hidden" name="history" value="{{ history|tojson|forceescape }}">
+                            <input type="hidden" name="tab" value="links">
+                            <input type="hidden" name="action" value="unlink">
+                            <input type="hidden" name="params" value="{{ {'from_url': item.document_href}|tojson|forceescape }}">
+                            <button type="submit">Remove the link, keep the text</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
             </tbody>
